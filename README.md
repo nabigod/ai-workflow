@@ -2,13 +2,47 @@
 
 Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 개정 `2026-11-08`, 프로젝트 관리 구조 버전 `5`를 기준으로 분리했습니다.
 
-전역 지침에는 짧은 연결 문구만 넣고, 에이전트는 역할별 필수 문서를 읽습니다. 각 PC에는 한 번 설치하며 프로젝트마다 규칙을 복사하지 않습니다. 프로젝트별 작업 기록은 기존처럼 `.ai-work/`에 두고 Git에서 제외합니다.
+전역 지침에는 짧은 연결 문구만 넣고, 에이전트는 역할별 필수 문서를 읽습니다. 공통 파일 준비와 도구 연결을 실제 사용하는 PC·실행 환경마다 한 번 수행하며 프로젝트마다 규칙을 복사하지 않습니다. 프로젝트별 작업 기록은 기존처럼 `.ai-work/`에 두고 Git에서 제외합니다.
 
-## 시작하기
+## 전체 연결 구조
 
-1. [설치 안내](docs/installation.md)에 따라 공통 저장소와 배포 사본을 준비합니다.
-2. Codex 전역 지침 또는 Cursor User Rules에 생성된 연결 문구를 적용합니다.
-3. [사용자 가이드](docs/user-guide.md)에 따라 `[계획]`, `[실행]`, `[통합]`, `[총괄]`, `[사용자검증]`, `[커밋]`을 요청합니다.
+기본 설치 위치는 홈 디렉토리의 `.ai-workflow`입니다. `source/`에는 Git에서 clone한 원본과 관리 스크립트가, `runtime/`에는 동기화한 버전별 사본과 도구에 등록할 연결 지침이 생깁니다. 실행 파일을 시스템에 설치하는 패키지가 아니라 로컬 문서와 Python 스크립트를 준비하는 방식입니다.
+
+| 위치 | 역할 |
+|---|---|
+| `source/` | 규칙·가이드·설치 도구의 Git clone |
+| `runtime/snapshots/<커밋>/` | 에이전트가 읽을 고정 버전의 문서·도구 묶음 |
+| `runtime/active.json` | 새 작업에서 읽을 스냅샷과 `entry.md`의 절대 경로 |
+| `runtime/sync-status.json` | 마지막 원격 확인의 성공·실패와 시각 |
+| `runtime/connectors/codex.md`, `cursor.md` | 각 도구의 전역 지침에 넣을 짧은 연결 문구 |
+
+연결 지침에는 해당 PC의 `active.json` 절대 경로가 들어갑니다. 도구에 이 내용을 등록하면 에이전트가 다음 순서로 파일을 읽습니다.
+
+```mermaid
+flowchart TD
+    C["Codex 전역 AGENTS.md"] --> A["runtime/active.json · sync-status.json 확인"]
+    U["Cursor User Rules"] --> A
+    A --> E["선택한 snapshots/커밋/workflow/entry.md 읽기"]
+    E --> R["현재 역할의 필수 규칙 읽기"]
+    R --> P["대상 프로젝트의 작업지시서·필수 자료 읽기"]
+```
+
+전체 규칙이 자동 첨부되는 방식은 아닙니다. 에이전트가 연결 지침을 따라 파일 읽기 도구로 접근하므로, 해당 실행 환경에서 로컬 경로를 읽을 수 있어야 합니다. 새 작업은 선택한 커밋을 고정하고, 진행 중인 작업은 동기화 후에도 기존 버전을 유지합니다.
+
+## 설치 순서
+
+| 단계 | 수행할 일 | 완료 결과 |
+|---|---|---|
+| 1. 공통 파일 준비 | 사용할 환경에서 clone → `sync` → `render` 실행 | `source/`와 `runtime/` 준비 |
+| 2. 도구 연결 | Codex는 `install-codex`, Cursor는 `cursor.md` 내용을 User Rules에 붙여넣기 | 도구가 문서 위치를 알 수 있음 |
+| 3. 연결 확인 | 각 도구의 새 대화에서 실제 경로·커밋·파일 읽기 확인 | 해당 환경의 연결 동작 확인 |
+| 4. 프로젝트 사용 | 사용자 가이드의 단계별 요청 실행 | 역할에 필요한 규칙으로 작업 |
+
+- 공통 준비: [Windows PowerShell](docs/installation.md#windows-powershell) 또는 [Bash / WSL / Linux / macOS](docs/installation.md#bash--wsl--linux--macos) 중 실제 실행 환경을 선택합니다. 이미 clone했다면 설치 문서의 기존 저장소 재사용 예시를 사용합니다.
+- 도구 등록: 사용하는 도구의 [Codex 연결](docs/installation.md#codex-연결)·[Cursor 연결](docs/installation.md#cursor-연결)을 진행합니다. 둘 다 사용하면 각각 등록합니다.
+- 검증과 사용: [첫 연결 확인](docs/installation.md#첫-연결-확인) 후 [사용자 가이드](docs/user-guide.md)에 따라 단계를 요청합니다.
+
+설치 예시의 `workflow_root`, `workflow_source`, `workflow_state`는 명령에 경로를 전달하는 셸 변수입니다. 영구 환경변수 등록은 필요 없으며 생성된 연결 지침에는 절대 경로가 기록됩니다. 새 터미널에서 관리 명령을 실행할 때만 변수를 다시 지정합니다.
 
 ## 구성
 
