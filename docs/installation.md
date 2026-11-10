@@ -2,6 +2,8 @@
 
 설치는 **공통 파일 준비 → 사용하는 도구 연결 → 새 대화에서 연결 확인** 순서입니다. 공통 준비만으로 Codex나 Cursor 설정이 바뀌지는 않습니다. Codex는 Python 명령으로 전역 지침을 갱신하고, Cursor는 생성한 연결 지침을 User Rules에 붙여넣습니다.
 
+이 문서는 파일 경로로 직접 읽는 기본 설치입니다. **Windows PC 한 곳에 설치한 워크플로우를 여러 SSH 서버 작업에서 사용하려면 [Cursor MCP 연결](mcp.md)을 사용합니다.** 공통 파일은 PC에서 한 번 준비하고, 서버에는 문서 clone·Python 설치 대신 HTTP MCP 연결 설정과 SSH 터널만 둡니다.
+
 ## 1. 실행 환경과 저장 위치 정하기
 
 Git과 Python 3.10 이상, 해당 환경에서의 GitHub SSH 접근이 필요합니다. 이 명령은 Git·Python·SSH 키를 자동 설치하지 않습니다. 다른 PC에서 받으려면 배포할 파일이 원격 `main`에 커밋·푸시되어 있어야 합니다.
@@ -117,12 +119,38 @@ Get-Content -Raw "$workflowState/connectors/codex.md"
 py -3 "$workflowSource/scripts/workflow.py" install-codex --state-dir $workflowState --shell powershell
 ```
 
-Bash:
+Bash / WSL / Linux / macOS:
+
+먼저 **연결하려는 Codex가 사용하는 설정 폴더**를 확인합니다. 설치 명령을 실행하는 터미널의 설정과 Codex 앱의 설정이 다를 수 있습니다.
+
+| 사용 환경 | 설치 대상 선택 |
+|---|---|
+| Linux·macOS 또는 WSL 안에서 실행하는 Codex CLI | 그 Codex와 같은 `CODEX_HOME`을 사용하는 터미널에서 기본 명령 실행. 미지정이면 해당 환경의 `~/.codex` |
+| Windows Codex 앱에서 WSL로 작업 | 앱의 실제 Codex 설정 폴더를 WSL 경로로 확인한 뒤 `--codex-home`으로 명시 |
+| Windows에서 직접 작업 | 위 PowerShell 명령 사용. 별도 설정 폴더를 사용한다면 `--codex-home` 명시 |
+
+터미널의 현재 값은 다음으로 확인할 수 있습니다. 이 값만으로 별도로 실행된 Windows 앱의 설정 위치까지 확인되는 것은 아닙니다.
+
+```bash
+printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-$HOME/.codex}"
+```
+
+**터미널과 대상 Codex가 같은 설정 폴더를 사용하는 경우:**
 
 ```bash
 cat "$workflow_state/connectors/codex.md"
 python3 "$workflow_source/scripts/workflow.py" install-codex --state-dir "$workflow_state" --shell bash
 ```
+
+**Windows Codex 앱을 WSL에서 연결하는 경우:** 아래는 앱의 설정 폴더가 `C:\Users\swook\.codex`인 예시입니다. `swook` 부분을 실제 Windows 사용자 폴더로 바꾸고, 앱이 다른 `CODEX_HOME`을 사용한다면 그 경로를 지정하세요. 앞 단계에서 준비한 source/runtime 변수는 그대로 사용합니다.
+
+```bash
+workflow_codex_home="/mnt/c/Users/swook/.codex"
+cat "$workflow_state/connectors/codex.md"
+python3 "$workflow_source/scripts/workflow.py" install-codex --state-dir "$workflow_state" --shell bash --codex-home "$workflow_codex_home"
+```
+
+`--codex-home`은 연결 지침을 쓸 **대상 폴더**이고, `--shell bash`는 에이전트가 실행할 **동기화 명령의 문법**입니다. Windows 설정 폴더에 쓰더라도 에이전트가 WSL에서 Bash 명령을 실행한다면 `--shell bash`를 유지합니다. 이 옵션들이 Codex의 실행 환경을 전환하거나 runtime을 Windows로 옮기지는 않습니다. 해당 에이전트에서 WSL의 runtime 경로와 Python·Git에 접근할 수 있어야 합니다.
 
 이 명령은 연결 지침을 다시 생성하고 다음 순서로 처리합니다.
 
@@ -133,11 +161,13 @@ python3 "$workflow_source/scripts/workflow.py" install-codex --state-dir "$workf
 
 출력된 경로는 설치 결과입니다. 사용자가 그 파일을 `runtime/connectors/codex.md`로 교체하는 추가 작업은 없습니다. 심볼릭 링크를 만드는 방식도 아니며 연결 지침의 내용을 복사해 넣습니다. 저장소 루트의 `source/AGENTS.md`는 저장소 유지보수 규칙이므로 전역 지침에 복사하지 않습니다.
 
-**실제로 쓰는 Codex 설정 폴더인지 확인하세요.** WSL에서 실행하면 기본값은 WSL 홈의 `.codex`이며 Windows 앱의 설정 위치와 다를 수 있습니다. 필요한 경우 위 설치 명령에 `--codex-home "실제 설정 폴더의 절대 경로"`를 추가합니다. 해당 Codex에서 runtime 경로도 읽을 수 있어야 합니다.
+출력된 설치 경로가 대상 Codex의 설정 폴더인지 대조하세요. `--codex-home`과 `CODEX_HOME`이 모두 없을 때만 WSL 홈의 `.codex`가 기본값입니다. WSL용 파일에 지침이 있어도 Windows 앱이 다른 설정 폴더를 사용하면 자동 로딩되지 않을 수 있으므로 아래의 새 대화 확인까지 진행합니다.
 
 기존 전체 phase-agent-workflow 본문, `AGENTS.override.md`, 심볼릭 링크인 `AGENTS.md` 등이 있으면 자동 설치를 중단합니다. 기존 파일을 검토·백업하고 충돌을 해소한 뒤 다시 설치하세요. 다른 사용자 규칙을 통째로 지우지 않습니다. Codex의 전역 지침과 override 적용은 [공식 안내](https://learn.chatgpt.com/docs/agent-configuration/agents-md)를 참고하세요. 실행 중인 대화의 지침은 이 명령으로 강제 교체되지 않습니다.
 
 ### Cursor 연결
+
+아래는 파일 경로 방식입니다. Remote SSH 등에서 PC 경로를 못 읽으면 [MCP 방식](mcp.md)의 `cursor-mcp.md`와 MCP 설정으로 연결하세요. 두 방식의 워크플로우 지침을 중복 등록하지 않습니다.
 
 Cursor에서는 **User Rules에 내용을 붙여넣는 단계가 Codex의 `install-codex`에 해당**합니다. `install-codex`를 실행할 필요가 없습니다.
 
@@ -158,14 +188,20 @@ User Rules는 여러 프로젝트에 적용되며 참조 파일은 에이전트�
 
 ## 첫 연결 확인
 
-**4단계: 설치를 끝낸 Codex와 Cursor 각각의 새 대화**에서 다음을 요청합니다. 파일 생성 성공과 실제 도구의 파일 접근 성공은 구분해서 확인합니다.
+**4단계: 설치를 끝낸 Codex와 Cursor 각각의 새 대화**에서 다음을 요청합니다. 연결 지침이나 파일 경로를 질문에 붙이지 않아야 자동 로딩과 직접 지정한 파일 읽기를 구분할 수 있습니다.
 
 ```text
-프로젝트를 실행하지 말고 연결 확인만 해 줘.
-워크플로우 active.json과 sync-status.json의 실제 경로,
-선택된 커밋, entry.md 접근 여부와 실행 역할의 필수 문서 목록을 알려 줘.
-원격 확인 시각과 실제 파일 읽기 여부를 구분해 줘.
+현재 자동으로 전달받은 지침에 ‘단계별 워크플로우 연결’이 있는지 알려 줘.
+없으면 없다고 보고하고 임의로 설치 폴더를 찾아 대신 읽지 마.
+있다면 그 지침에 따라 연결 확인만 수행해 줘.
+active.json과 sync-status.json의 실제 경로, 선택된 커밋,
+entry.md 본문 읽기 성공 여부와 실행 역할의 필수 문서 목록을 알려 줘.
+필수 문서의 존재 확인과 본문 읽기 여부를 구분해 줘.
+기록된 마지막 원격 확인과 이번 실제 확인을 구분해 줘.
+프로젝트 실행·원격 동기화·파일 변경은 하지 마.
 ```
+
+자동 전달된 연결 지침이 있고 그 경로의 JSON·entry.md 본문을 읽었다면 **해당 Codex/Cursor 실행 환경의 자동 연결**이 확인된 것입니다. 필수 역할 문서의 본문을 아직 읽지 않았어도 연결 확인 실패는 아니며 실제 단계 수행 시 읽습니다. 원격 동기화를 생략한 확인으로 현재 원격 최신 여부까지 검증한 것은 아닙니다.
 
 다음 연결이 실제로 확인되면 설치가 끝난 것입니다.
 
@@ -176,7 +212,7 @@ Codex 전역 AGENTS.md 또는 Cursor User Rules
     → 현재 역할의 필수 규칙
 ```
 
-경로를 읽지 못하면 연결 지침의 절대 경로, 선택한 Windows/WSL 환경, 파일 접근 권한을 확인합니다. 클라우드·원격 에이전트는 PC의 경로에 자동 접근하지 못하므로 그 환경에도 문서 묶음과 연결 지침이 필요합니다. 전역 지침이 모든 하위 에이전트에 자동 전달된다고 가정하지 않으며, 부모가 고정 커밋·문서 경로·역할·필수 입력을 전달하고 접근을 확인합니다. [Cursor 서브에이전트 안내](https://cursor.com/docs/subagents)
+경로를 읽지 못하면 연결 지침의 절대 경로, 선택한 Windows/WSL 환경, 파일 접근 권한을 확인합니다. 클라우드·원격 에이전트는 PC의 경로에 자동 접근하지 못합니다. 접근 가능한 환경에 문서 묶음을 두거나, Remote SSH에서는 [PC MCP와 터널](mcp.md)로 본문을 제공할 수 있습니다. 전역 지침이 모든 하위 에이전트에 자동 전달된다고 가정하지 않으며, 부모가 고정 커밋·문서 경로·역할·필수 입력을 전달하고 접근을 확인합니다. [Cursor 서브에이전트 안내](https://cursor.com/docs/subagents)
 
 연결 확인 후 [사용자 가이드](user-guide.md)의 단계별 요청을 사용합니다. 일반 프로젝트마다 공통 규칙을 복사하지 않으며 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 저장합니다.
 
