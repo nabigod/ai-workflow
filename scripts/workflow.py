@@ -8,6 +8,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import secrets
 import shlex
 import shutil
 import stat
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import uuid
+from urllib.parse import urlsplit
 import zipfile
 
 
@@ -217,6 +219,99 @@ def install_codex(state, shell, codex_home=None):
         return path
 
 
+def mcp_config(state, transport, url):
+    state = Path(state).resolve()
+    if transport == "stdio":
+        return {"type": "stdio", "command": sys.executable, "args": [
+            str(Path(__file__).resolve().with_name("workflow_mcp.py")),
+            "--state-dir", str(state),
+        ]}
+    endpoint = urlsplit(url)
+    if (endpoint.scheme not in ("http", "https") or not endpoint.hostname
+            or endpoint.path != "/mcp" or endpoint.username or endpoint.password
+            or endpoint.query or endpoint.fragment):
+        raise ValueError("인증정보·쿼리가 없는 /mcp HTTP URL을 지정하세요.")
+    if endpoint.scheme == "http" and endpoint.hostname not in ("127.0.0.1", "localhost", "::1"):
+        raise ValueError("HTTP는 SSH 터널의 loopback 주소만 허용합니다. 외부 연결은 HTTPS가 필요합니다.")
+    token_path = state / "mcp-token"
+    if token_path.is_symlink():
+        raise RuntimeError("토큰 파일 심볼릭 링크는 사용할 수 없습니다.")
+    if not token_path.exists():
+        # O_EXCL preserves a concurrently created token; 0600 also protects configs on Unix.
+        try:
+            descriptor = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            pass
+        else:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+                stream.write(secrets.token_urlsafe(32) + "\n")
+    token = token_path.read_text(encoding="utf-8").strip()
+    if len(token) < 32 or not token.isascii() or any(c.isspace() for c in token):
+        raise ValueError("기존 mcp-token이 올바르지 않습니다. 자동 교체하지 않습니다.")
+    return {"url": url, "headers": {"Authorization": "Bearer " + token}}
+
+
+def write_private_json(path, value):
+    # Secret-bearing files must be private from their first write, not after a rename.
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.is_symlink():
+        raise RuntimeError(f"심볼릭 링크에는 쓰지 않습니다: {path}")
+    temporary = path.with_name(path.name + ".tmp-" + uuid.uuid4().hex)
+    try:
+        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(value, stream, ensure_ascii=False, indent=2)
+            stream.write("\n")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def prepare_mcp(state, url="http://127.0.0.1:8765/mcp"):
+    state = Path(state).resolve()
+    with exclusive(state):
+        # Use the tool's own template so an existing snapshot can be connected before
+        # the new transport is released; workflow rule bodies still come from snapshots.
+        json.loads((state / "active.json").read_text(encoding="utf-8"))
+        template = Path(__file__).resolve().parents[1] / "templates/mcp-instructions.md"
+        instructions = template.read_text(encoding="utf-8")
+        paths = []
+        configs = {transport: {"mcpServers": {"ai-workflow": mcp_config(state, transport, url)}}
+                   for transport in ("stdio", "http")}
+        for transport, config in configs.items():
+            path = state / "connectors" / f"cursor-mcp-{transport}.json"
+            write_private_json(path, config)
+            paths.append(path)
+        connector = state / "connectors/cursor-mcp.md"
+        write_atomic(connector, instructions.encode("utf-8"))
+        return [*paths, connector]
+
+
+def install_cursor_mcp(state, transport="http", url="http://127.0.0.1:8765/mcp", config=None):
+    state = Path(state).resolve()
+    path = Path(config).expanduser().absolute() if config else Path.home() / ".cursor/mcp.json"
+    with exclusive(state):
+        if path.is_symlink():
+            raise RuntimeError("기존 mcp.json이 심볼릭 링크입니다. 자동 변경하지 않습니다.")
+        original = path.read_bytes() if path.exists() else b""
+        content = json.loads(original.decode("utf-8-sig")) if original else {}
+        if not isinstance(content, dict) or not isinstance(content.get("mcpServers", {}), dict):
+            raise ValueError("mcp.json의 mcpServers는 JSON 객체여야 합니다.")
+        entry = mcp_config(state, transport, url)
+        servers = content.setdefault("mcpServers", {})
+        if servers.get("ai-workflow") == entry:
+            return path
+        servers["ai-workflow"] = entry
+        if path.exists():
+            backup = path.with_name(path.name + ".bak-" + uuid.uuid4().hex)
+            # Preserve exact original bytes, including BOM/line endings.
+            descriptor = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, "wb") as stream:
+                stream.write(original)
+        write_private_json(path, content)
+        return path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="action", required=True)
@@ -231,14 +326,27 @@ def main():
         action.add_argument("--shell", choices=("bash", "powershell"), required=True)
         if name == "install-codex":
             action.add_argument("--codex-home", type=Path)
+    prepare = commands.add_parser("prepare-mcp", help="읽기 전용 MCP 연결 지침·Cursor 설정 조각 생성")
+    prepare.add_argument("--state-dir", required=True, type=Path)
+    prepare.add_argument("--url", default="http://127.0.0.1:8765/mcp")
+    install = commands.add_parser("install-cursor-mcp", help="기존 Cursor MCP 설정을 백업·보존하며 연결 추가")
+    install.add_argument("--state-dir", required=True, type=Path)
+    install.add_argument("--transport", choices=("stdio", "http"), default="http")
+    install.add_argument("--url", default="http://127.0.0.1:8765/mcp")
+    install.add_argument("--config", type=Path, help="대상 mcp.json. 기본값: 이 Python 환경의 ~/.cursor/mcp.json")
     args = parser.parse_args()
     try:
         if args.action == "sync":
             print(json.dumps(sync(args.repo, args.state_dir, args.branch, args.offline), ensure_ascii=False, indent=2))
         elif args.action == "render":
             print(render(args.state_dir, args.shell))
-        else:
+        elif args.action == "install-codex":
             print(install_codex(args.state_dir, args.shell, args.codex_home))
+        elif args.action == "prepare-mcp":
+            for path in prepare_mcp(args.state_dir, args.url):
+                print(path)
+        else:
+            print(install_cursor_mcp(args.state_dir, args.transport, args.url, args.config))
     except (OSError, ValueError, KeyError, RuntimeError, subprocess.TimeoutExpired, zipfile.BadZipFile) as error:
         print(f"오류: {error}", file=sys.stderr)
         return 1
