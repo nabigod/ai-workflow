@@ -1,241 +1,125 @@
-# PC별 설치와 갱신
+# WSL 설치와 갱신
 
-설치는 **공통 파일 준비 → 사용하는 도구 연결 → 새 대화에서 연결 확인** 순서입니다. 공통 준비만으로 Codex나 Cursor 설정이 바뀌지는 않습니다. Codex는 Python 명령으로 전역 지침을 갱신하고, Cursor는 생성한 연결 지침을 User Rules에 붙여넣습니다.
+개정: 2026-11-10
 
-이 문서는 파일 경로로 직접 읽는 기본 설치입니다. **Windows PC 한 곳에 설치한 워크플로우를 여러 SSH 서버 작업에서 사용하려면 [Cursor MCP 연결](mcp.md)을 사용합니다.** 공통 파일은 PC에서 한 번 준비하고, 서버에는 문서 clone·Python 설치 대신 HTTP MCP 연결 설정과 SSH 터널만 둡니다.
+워크플로우는 **작업용 PC의 WSL2에 한 번 설치**합니다. 아래 명령은 모두 같은 WSL 배포판의 Bash에서 실행합니다. WSL에 Git·Python 3.10 이상과 GitHub SSH 접근이 준비되어 있어야 합니다. Codex·Cursor는 기존에 설치한 앱을 사용합니다.
 
-## 1. 실행 환경과 저장 위치 정하기
+순서는 **공통 설치 → 사용하는 도구 연결 → 새 대화에서 확인**입니다. SSH 서버에서 작업할 때만 [원격 연결](mcp.md)을 추가합니다. 이 안내는 원격 `master`의 배포본을 사용합니다.
 
-Git과 Python 3.10 이상, 해당 환경에서의 GitHub SSH 접근이 필요합니다. 이 명령은 Git·Python·SSH 키를 자동 설치하지 않습니다. 다른 PC에서 받으려면 배포할 파일이 원격 `main`에 커밋·푸시되어 있어야 합니다.
+## 1. 공통 설치
 
-Windows와 WSL은 Python·Git·홈 디렉토리·경로 표기가 다릅니다. 실제 에이전트가 파일을 읽고 명령을 실행하는 환경을 선택하세요. 같은 물리 PC라도 접근 환경이 다르면 각각 준비할 수 있습니다. WSL에서 생성한 `/home/...` 경로가 Windows나 클라우드 에이전트에서도 그대로 통한다고 가정하지 않습니다.
-
-기본 배치는 다음과 같습니다. 소스와 runtime은 제품 프로젝트 밖에 둡니다.
-
-```text
-~/.ai-workflow/                    ← workflow_root: 설치 자료의 기준 폴더
-├── source/                       ← workflow_source: Git clone
-│   ├── workflow/                 규칙 원본
-│   ├── docs/                     사용자 설명
-│   └── scripts/workflow.py       동기화·연결 지침 생성·Codex 설치 도구
-└── runtime/                      ← workflow_state: 생성되는 배포 자료
-    ├── active.json               사용할 커밋·스냅샷·entry.md 절대 경로
-    ├── sync-status.json          마지막 원격 확인 결과와 시각
-    ├── snapshots/<커밋>/         해당 커밋의 전체 파일 묶음
-    └── connectors/
-        ├── codex.md              Codex 전역 지침에 넣을 내용
-        └── cursor.md             Cursor User Rules에 넣을 내용
-```
-
-Windows 예시의 기준 폴더는 `$env:USERPROFILE\.ai-workflow`, Bash 예시에서는 `$HOME/.ai-workflow`입니다. `workflow_root`는 clone 폴더 자체가 아니라 `source`와 `runtime`을 묶는 기본 경로입니다. 기존 clone을 다른 위치에서 사용해도 되고 runtime도 별도로 지정할 수 있습니다.
-
-이 경로 변수들은 현재 터미널에서 명령을 편하게 쓰기 위한 셸 변수입니다. `export`나 운영체제의 영구 환경변수 등록은 필요 없습니다. 에이전트는 변수 이름 대신 생성된 연결 지침의 절대 경로를 사용합니다. 새 터미널에서는 관리 명령을 실행하기 전에 같은 경로로 변수를 다시 지정하세요.
-
-## 2. 공통 파일 준비
-
-아래에서 사용하는 환경 하나를 선택합니다. 각 명령이 실패하면 다음 단계로 넘어가지 말고 오류를 확인하세요.
-
-| 명령 | 수행 내용 | 아직 하지 않는 일 |
-|---|---|---|
-| `git clone` | 원격 저장소를 source에 복제 | runtime 생성·도구 연결 |
-| `sync` | 원격 main을 fetch하고 고정 사본·active.json·확인 결과 생성 | source 작업 파일 갱신·도구 설정 변경 |
-| `render` | 해당 PC의 절대 경로를 넣어 두 connectors 파일 생성 | Codex·Cursor 설정 등록 |
-
-### Windows PowerShell
-
-**처음 설치할 때** 다음을 실행합니다.
-
-```powershell
-$workflowRoot = Join-Path $env:USERPROFILE '.ai-workflow'
-$workflowSource = Join-Path $workflowRoot 'source'
-$workflowState = Join-Path $workflowRoot 'runtime'
-git clone git@github.com:nabigod/ai-workflow.git $workflowSource
-if ($LASTEXITCODE -ne 0) { throw 'clone failed' }
-```
-
-**이미 clone했다면** 위 clone 명령을 실행하지 않고 경로만 지정합니다. 아래 source 예시는 실제 clone 위치로 바꾸세요.
-
-```powershell
-$workflowRoot = Join-Path $env:USERPROFILE '.ai-workflow'
-$workflowSource = 'C:\work\ai-workflow'
-$workflowState = Join-Path $workflowRoot 'runtime'
-```
-
-어느 경우든 이어서 공통으로 실행합니다.
-
-```powershell
-py -3 "$workflowSource/scripts/workflow.py" sync --repo $workflowSource --state-dir $workflowState
-if ($LASTEXITCODE -ne 0) { throw 'sync failed' }
-py -3 "$workflowSource/scripts/workflow.py" render --state-dir $workflowState --shell powershell
-if ($LASTEXITCODE -ne 0) { throw 'render failed' }
-```
-
-### Bash / WSL / Linux / macOS
-
-**처음 설치할 때** 다음을 실행합니다.
+경로를 지정합니다. 기존 WSL clone이 있다면 `workflow_source`만 실제 위치로 바꾸고 clone 명령은 건너뜁니다. 새 터미널에서 관리 명령을 사용할 때도 이 변수부터 지정합니다.
 
 ```bash
-workflow_root="$HOME/.ai-workflow"
-workflow_source="$workflow_root/source"
-workflow_state="$workflow_root/runtime"
-git clone git@github.com:nabigod/ai-workflow.git "$workflow_source"
+workflow_source="$HOME/.ai-workflow/source"
+workflow_state="$HOME/.ai-workflow/runtime"
 ```
 
-**이미 clone했다면** 위 clone 명령을 실행하지 않고 경로만 지정합니다. 예를 들어 기존 WSL 저장소를 그대로 사용하려면 다음과 같습니다.
+**처음 설치할 때만** 저장소를 받습니다. clone이 성공한 뒤 다음 명령으로 넘어갑니다.
 
 ```bash
-workflow_root="$HOME/.ai-workflow"
-workflow_source="/home/nabi/work/ai-workflow"
-workflow_state="$workflow_root/runtime"
+git clone --branch master git@github.com:nabigod/ai-workflow.git "$workflow_source"
 ```
 
-어느 경우든 clone 성공과 경로를 확인한 뒤 이어서 실행합니다.
+고정 사본과 연결 지침을 만듭니다. 기존 clone은 먼저 아래 갱신 절차로 `master`의 도구를 받습니다.
 
 ```bash
-python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state" &&
+python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state" --branch master &&
 python3 "$workflow_source/scripts/workflow.py" render --state-dir "$workflow_state" --shell bash
 ```
 
-명령의 파일명은 `workflow.py`이며 점 앞에 역슬래시를 넣지 않습니다. 위 예시에서는 홈 아래에 runtime이 생성되고, 기존 clone을 재사용하면 source 파일은 기존 위치에 남습니다.
+제품 프로젝트 밖의 WSL 홈에 다음 자료가 생깁니다. 변수는 현재 터미널용이며 영구 환경변수 등록은 필요 없습니다.
 
-### 생성되는 파일
+```text
+~/.ai-workflow/
+├── source/                       원본과 관리 도구의 Git clone
+└── runtime/
+    ├── active.json               선택한 커밋·스냅샷·entry 절대 경로
+    ├── sync-status.json          마지막 원격 확인 결과와 시각
+    ├── snapshots/<커밋>/         작업에 사용할 고정 사본
+    └── connectors/               도구에 등록할 연결 지침·설정
+```
 
-`sync` 성공 시 `runtime/active.json`, `sync-status.json`, `snapshots/<커밋>/`이 생기고, `render` 성공 시 `runtime/connectors/codex.md`와 `cursor.md`가 생깁니다. render는 연결 지침을 화면에도 출력합니다. 이 단계가 끝나면 사용할 도구를 아래에서 연결합니다.
+`sync`는 원격을 fetch해 사본을 만들고 source 작업 파일은 변경하지 않습니다. 실패하면 기존 active를 유지하고 실패 결과를 기록합니다. `render`만으로 앱 설정이 바뀌지는 않으므로 이어서 사용하는 도구를 연결합니다.
 
-`active.json`은 문서 본문이 아니라 현재 선택한 커밋과 파일 위치를 담습니다. `remote_checked_at`은 그 시각에 원격을 확인했다는 뜻이며 계속 최신이라는 보장이 아닙니다. 실패한 sync는 기존 active.json을 유지하고 sync-status.json에 실패를 기록합니다. 스냅샷은 직접 수정하지 않으며 진행 중인 작업이 사용할 수 있어 과거 사본을 자동 삭제하지 않습니다.
+### PowerShell 설치에서 옮기는 경우
 
-## 3. 사용하는 도구 연결
+위 순서로 WSL에 공통 자료를 준비한 뒤 아래 도구 연결을 다시 수행합니다. Windows의 active.json에는 Windows 절대 경로가 들어 있으므로 WSL에 그대로 복사하지 않습니다. 기존 작업이 Windows의 고정 사본을 참조할 수 있어 이전 runtime은 보존합니다. 새 대화의 연결 확인이 끝나면 새 작업부터 WSL 사본을 사용합니다.
 
-Codex와 Cursor 모두 같은 runtime을 읽을 수 있는 환경이라면 공통 파일은 공유하고 연결만 각각 등록합니다. 두 도구에서 접근 가능한 경로가 다르면 각 환경에서 생성한 연결 지침을 사용하세요.
+## 2. 사용하는 도구 연결
 
 ### Codex 연결
 
-연결은 **`install-codex`가 전역 `AGENTS.md`에 내용을 직접 넣는 방식**입니다. 연결 지침을 검토한 뒤 앞 단계와 같은 터미널에서 해당 환경의 명령 하나를 실행합니다.
+Codex 앱에서 **Agent environment와 통합 터미널을 WSL로 설정한 뒤 앱을 재시작**합니다. 에이전트 환경과 터미널 설정은 별개입니다. [공식 Windows 앱 안내](https://learn.chatgpt.com/docs/windows/windows-app)
 
-PowerShell:
-
-```powershell
-Get-Content -Raw "$workflowState/connectors/codex.md"
-py -3 "$workflowSource/scripts/workflow.py" install-codex --state-dir $workflowState --shell powershell
-```
-
-Bash / WSL / Linux / macOS:
-
-먼저 **연결하려는 Codex가 사용하는 설정 폴더**를 확인합니다. 설치 명령을 실행하는 터미널의 설정과 Codex 앱의 설정이 다를 수 있습니다.
-
-| 사용 환경 | 설치 대상 선택 |
-|---|---|
-| Linux·macOS 또는 WSL 안에서 실행하는 Codex CLI | 그 Codex와 같은 `CODEX_HOME`을 사용하는 터미널에서 기본 명령 실행. 미지정이면 해당 환경의 `~/.codex` |
-| Windows Codex 앱에서 WSL로 작업 | 앱의 실제 Codex 설정 폴더를 WSL 경로로 확인한 뒤 `--codex-home`으로 명시 |
-| Windows에서 직접 작업 | 위 PowerShell 명령 사용. 별도 설정 폴더를 사용한다면 `--codex-home` 명시 |
-
-터미널의 현재 값은 다음으로 확인할 수 있습니다. 이 값만으로 별도로 실행된 Windows 앱의 설정 위치까지 확인되는 것은 아닙니다.
-
-```bash
-printf 'CODEX_HOME=%s\n' "${CODEX_HOME:-$HOME/.codex}"
-```
-
-**터미널과 대상 Codex가 같은 설정 폴더를 사용하는 경우:**
-
-```bash
-cat "$workflow_state/connectors/codex.md"
-python3 "$workflow_source/scripts/workflow.py" install-codex --state-dir "$workflow_state" --shell bash
-```
-
-**Windows Codex 앱을 WSL에서 연결하는 경우:** 아래는 앱의 설정 폴더가 `C:\Users\swook\.codex`인 예시입니다. `swook` 부분을 실제 Windows 사용자 폴더로 바꾸고, 앱이 다른 `CODEX_HOME`을 사용한다면 그 경로를 지정하세요. 앞 단계에서 준비한 source/runtime 변수는 그대로 사용합니다.
+WSL에서 **그 Codex가 실제 사용하는 설정 폴더**에 연결 지침을 설치합니다. 다음은 Windows Codex 앱의 기본 설정 폴더 예시입니다. `swook`을 실제 Windows 사용자 폴더 이름으로 바꾸고 별도 설정 폴더를 사용한다면 그 위치를 지정합니다.
 
 ```bash
 workflow_codex_home="/mnt/c/Users/swook/.codex"
-cat "$workflow_state/connectors/codex.md"
 python3 "$workflow_source/scripts/workflow.py" install-codex --state-dir "$workflow_state" --shell bash --codex-home "$workflow_codex_home"
 ```
 
-`--codex-home`은 연결 지침을 쓸 **대상 폴더**이고, `--shell bash`는 에이전트가 실행할 **동기화 명령의 문법**입니다. Windows 설정 폴더에 쓰더라도 에이전트가 WSL에서 Bash 명령을 실행한다면 `--shell bash`를 유지합니다. 이 옵션들이 Codex의 실행 환경을 전환하거나 runtime을 Windows로 옮기지는 않습니다. 해당 에이전트에서 WSL의 runtime 경로와 Python·Git에 접근할 수 있어야 합니다.
+WSL 안의 Codex CLI에 연결한다면 위 `workflow_codex_home`을 `${CODEX_HOME:-$HOME/.codex}`로 지정합니다. Windows 앱과 WSL CLI의 기본 설정 폴더는 다르지만 workflow source/runtime은 같은 WSL 사본을 사용합니다.
 
-이 명령은 연결 지침을 다시 생성하고 다음 순서로 처리합니다.
-
-1. 대상 설정 폴더를 `--codex-home` 지정값 → `CODEX_HOME` 환경변수 → Python 실행 환경의 사용자 홈 아래 `.codex` 순서로 선택합니다.
-2. 그 폴더의 `AGENTS.md`에 워크플로우 연결 구역을 추가하거나 갱신합니다. 파일이 없으면 만듭니다.
-3. 기존 파일을 변경할 경우 옆에 `AGENTS.md.bak-<고유값>`으로 백업하고, 연결 구역 밖의 사용자 지침은 보존합니다.
-4. 성공하면 대상 `AGENTS.md` 경로를 출력합니다. 이미 같은 내용이면 다시 쓰거나 백업을 추가하지 않습니다.
-
-출력된 경로는 설치 결과입니다. 사용자가 그 파일을 `runtime/connectors/codex.md`로 교체하는 추가 작업은 없습니다. 심볼릭 링크를 만드는 방식도 아니며 연결 지침의 내용을 복사해 넣습니다. 저장소 루트의 `source/AGENTS.md`는 저장소 유지보수 규칙이므로 전역 지침에 복사하지 않습니다.
-
-출력된 설치 경로가 대상 Codex의 설정 폴더인지 대조하세요. `--codex-home`과 `CODEX_HOME`이 모두 없을 때만 WSL 홈의 `.codex`가 기본값입니다. WSL용 파일에 지침이 있어도 Windows 앱이 다른 설정 폴더를 사용하면 자동 로딩되지 않을 수 있으므로 아래의 새 대화 확인까지 진행합니다.
-
-기존 전체 phase-agent-workflow 본문, `AGENTS.override.md`, 심볼릭 링크인 `AGENTS.md` 등이 있으면 자동 설치를 중단합니다. 기존 파일을 검토·백업하고 충돌을 해소한 뒤 다시 설치하세요. 다른 사용자 규칙을 통째로 지우지 않습니다. Codex의 전역 지침과 override 적용은 [공식 안내](https://learn.chatgpt.com/docs/agent-configuration/agents-md)를 참고하세요. 실행 중인 대화의 지침은 이 명령으로 강제 교체되지 않습니다.
+명령은 대상 `AGENTS.md`의 워크플로우 구역만 추가·갱신하고 기존 사용자 지침은 보존합니다. 변경 전 백업을 만들며 출력된 경로가 설치 결과입니다. 추가 파일 복사나 심볼릭 링크 생성은 필요 없습니다. `AGENTS.override.md`, 이전 전체 워크플로우나 심볼릭 링크 때문에 중단되면 기존 설정을 검토하고 충돌만 해소합니다. [전역 지침 탐색 공식 안내](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
 
 ### Cursor 연결
 
-아래는 파일 경로 방식입니다. Remote SSH 등에서 PC 경로를 못 읽으면 [MCP 방식](mcp.md)의 `cursor-mcp.md`와 MCP 설정으로 연결하세요. 두 방식의 워크플로우 지침을 중복 등록하지 않습니다.
+Cursor에서 **같은 WSL 배포판의 프로젝트 폴더를 연 창**을 사용합니다. 상태 표시와 터미널의 `/home/...` 경로를 확인합니다. MCP 설정 편집에서 여는 사용자 설정도 WSL의 `~/.cursor/mcp.json`인지 대조합니다. 다른 위치가 열리면 먼저 창의 WSL 연결을 확인합니다. 폴더를 여는 것은 프로젝트 실행이 아닙니다.
 
-Cursor에서는 **User Rules에 내용을 붙여넣는 단계가 Codex의 `install-codex`에 해당**합니다. `install-codex`를 실행할 필요가 없습니다.
-
-1. 앞 단계에서 생성한 `runtime/connectors/cursor.md`를 엽니다. PowerShell에서는 `Get-Content -Raw "$workflowState/connectors/cursor.md"`, Bash에서는 `cat "$workflow_state/connectors/cursor.md"`로 내용을 볼 수 있습니다.
-2. Cursor의 **Customize → Rules → User Rules**에 그 내용을 붙여넣습니다. 파일 경로만 붙이는 것이 아니라 파일 안의 연결 지침 전체를 넣습니다.
-3. 기존 전체 워크플로우가 등록돼 있다면 백업 후 해당 부분을 새 연결 지침으로 교체하고 다른 사용자 규칙은 보존합니다.
-4. 새 대화에서 아래의 첫 연결 확인을 수행합니다.
-
-연결 지침에는 다음처럼 해당 PC의 실제 절대 경로가 들어갑니다. 아래 경로는 예시이므로 직접 복사하는 대신 자신의 PC에서 생성한 파일을 사용하세요.
-
-```text
-공통 배포 정보: /home/nabi/.ai-workflow/runtime/active.json
-```
-
-Cursor는 User Rules를 읽고 파일 읽기 도구로 이 경로에 접근합니다. active.json의 `entry` 값이 가리키는 `snapshots/<커밋>/workflow/entry.md`를 읽은 다음, 그 문서에 지정된 역할별 규칙을 읽습니다. 문서 전체가 자동 첨부되거나 User Rules 등록만으로 파일 접근 권한이 추가되는 것은 아닙니다.
-
-User Rules는 여러 프로젝트에 적용되며 참조 파일은 에이전트가 필요할 때 읽습니다. 이 스크립트는 Cursor 설정을 직접 편집하지 않습니다. 다른 PC의 연결 지침을 그대로 붙여넣으면 경로가 맞지 않을 수 있으므로 각 PC에서 render한 내용을 등록하세요. [Cursor 규칙 공식 안내](https://cursor.com/docs/rules)
-
-## 첫 연결 확인
-
-**4단계: 설치를 끝낸 Codex와 Cursor 각각의 새 대화**에서 다음을 요청합니다. 연결 지침이나 파일 경로를 질문에 붙이지 않아야 자동 로딩과 직접 지정한 파일 읽기를 구분할 수 있습니다.
-
-```text
-현재 자동으로 전달받은 지침에 ‘단계별 워크플로우 연결’이 있는지 알려 줘.
-없으면 없다고 보고하고 임의로 설치 폴더를 찾아 대신 읽지 마.
-있다면 그 지침에 따라 연결 확인만 수행해 줘.
-active.json과 sync-status.json의 실제 경로, 선택된 커밋,
-entry.md 본문 읽기 성공 여부와 실행 역할의 필수 문서 목록을 알려 줘.
-필수 문서의 존재 확인과 본문 읽기 여부를 구분해 줘.
-기록된 마지막 원격 확인과 이번 실제 확인을 구분해 줘.
-프로젝트 실행·원격 동기화·파일 변경은 하지 마.
-```
-
-자동 전달된 연결 지침이 있고 그 경로의 JSON·entry.md 본문을 읽었다면 **해당 Codex/Cursor 실행 환경의 자동 연결**이 확인된 것입니다. 필수 역할 문서의 본문을 아직 읽지 않았어도 연결 확인 실패는 아니며 실제 단계 수행 시 읽습니다. 원격 동기화를 생략한 확인으로 현재 원격 최신 여부까지 검증한 것은 아닙니다.
-
-다음 연결이 실제로 확인되면 설치가 끝난 것입니다.
-
-```text
-Codex 전역 AGENTS.md 또는 Cursor User Rules
-    → active.json과 sync-status.json
-    → snapshots/<커밋>/workflow/entry.md
-    → 현재 역할의 필수 규칙
-```
-
-경로를 읽지 못하면 연결 지침의 절대 경로, 선택한 Windows/WSL 환경, 파일 접근 권한을 확인합니다. 클라우드·원격 에이전트는 PC의 경로에 자동 접근하지 못합니다. 접근 가능한 환경에 문서 묶음을 두거나, Remote SSH에서는 [PC MCP와 터널](mcp.md)로 본문을 제공할 수 있습니다. 전역 지침이 모든 하위 에이전트에 자동 전달된다고 가정하지 않으며, 부모가 고정 커밋·문서 경로·역할·필수 입력을 전달하고 접근을 확인합니다. [Cursor 서브에이전트 안내](https://cursor.com/docs/subagents)
-
-연결 확인 후 [사용자 가이드](user-guide.md)의 단계별 요청을 사용합니다. 일반 프로젝트마다 공통 규칙을 복사하지 않으며 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 저장합니다.
-
-## 새 작업과 기존 작업
-
-새 작업 전에 원격을 확인하려면 같은 경로 변수를 지정하고 다음 중 환경에 맞는 명령을 실행합니다. 새 터미널이면 2단계의 변수 지정 부분만 다시 실행하며 clone을 반복하지 않습니다.
+WSL에서 MCP 연결 자료를 만들고 WSL용 Cursor 설정에 등록합니다.
 
 ```bash
-python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state"
+python3 "$workflow_source/scripts/workflow.py" prepare-mcp --state-dir "$workflow_state" &&
+python3 "$workflow_source/scripts/workflow.py" install-cursor-mcp --state-dir "$workflow_state" --transport stdio
 ```
 
-```powershell
-py -3 "$workflowSource/scripts/workflow.py" sync --repo $workflowSource --state-dir $workflowState
+`~/.cursor/mcp.json`의 다른 MCP 항목은 보존하고 변경 전 백업합니다. 설치가 성공하면 연결 지침을 표시합니다.
+
+```bash
+cat "$workflow_state/connectors/cursor-mcp.md"
 ```
 
-`sync`는 fetch 후 원격 커밋에서 사본을 만들며 source의 작업 파일은 pull하지 않습니다. 미커밋 수정이나 로컬에만 있는 커밋은 기본 원격 동기화로 배포되지 않습니다. 원격 main에 반영한 뒤 다른 PC에서 sync해야 합니다. 전역 연결 지침은 허용된 환경에서 새 작업의 담당자 한 명이 필요한 동기화를 수행하도록 안내하며, OS 상시 서비스나 앱 hook을 설치하지 않습니다.
+Cursor **Customize → Rules → User Rules**에서 기존 워크플로우 부분을 표시된 지침 전체로 교체합니다. 다른 사용자 규칙은 보존합니다. MCP 목록에서 `ai-workflow`와 두 읽기 도구가 보이는지 확인합니다. User Rules는 읽는 방법을 알려 주고 MCP는 실제 원문을 제공하므로 둘 다 필요합니다. [Cursor MCP 공식 안내](https://cursor.com/docs/mcp)
 
-| 상황 | 필요한 조치 |
-|---|---|
-| 규칙 문서만 개정 | 원격 main에 반영 후 sync. 연결 경로·템플릿이 같으면 User Rules 재복사나 Codex 재설치는 필요 없음 |
-| 연결 템플릿·동기화 도구 개정 | source의 로컬 변경을 확인한 뒤 `git -C "$workflow_source" pull --ff-only`로 도구 갱신. PowerShell은 `$workflowSource` 사용. sync → render → 해당 도구 연결 단계를 다시 수행 |
-| source/runtime 위치 변경 또는 다른 PC 설치 | 해당 위치에서 sync·render하고 연결 지침 다시 등록. 진행 중인 작업이 쓰는 기존 사본은 보존 |
-| 새 작업·하위 에이전트 | 선택된 커밋·스냅샷 경로를 고정하고 하위 에이전트에도 동일 값 전달 |
-| 기존 작업 재개 | 기존에 고정한 사본 유지. 새 개정 적용을 명시적으로 요청한 경우 영향 확인 후 전환 |
+WSL 작업에서는 Cursor가 MCP 프로세스를 관리하므로 HTTP 서버나 터널을 별도로 켤 필요가 없습니다. **SSH 서버 작업에만 [원격 연결](mcp.md)을 추가**합니다.
 
-원격 접근에 실패하면 기존 사본과 마지막 확인 결과를 보고하며, 최신 버전이 필수이면 시작을 보류합니다. 명시적으로 `--offline`을 추가하면 source의 로컬 HEAD로 사본을 만들지만 원격 최신 여부는 확인하지 않습니다. `.sync-lock`이 남으면 owner.json의 프로세스·진행 여부를 먼저 확인하고 활동 중인 잠금은 지우지 않습니다.
+## 3. 연결 확인
+
+각 도구의 **실제 작업 창에서 새 대화**를 열고 다음을 요청합니다. 지침 본문이나 경로를 질문에 붙이지 않아야 자동 로딩 여부를 확인할 수 있습니다.
+
+```text
+프로젝트를 실행하지 말고 연결 확인만 해 줘.
+자동으로 전달받은 지침에 ‘단계별 워크플로우 연결’이 있는지 알려 줘.
+없으면 없다고 보고하고 임의로 설치 경로를 찾아 읽지 마.
+있으면 지침의 방식으로 상태와 선택한 커밋의 entry.md 본문을 읽어 줘.
+실제로 사용한 파일 읽기 또는 MCP 도구, 두 JSON의 호스트 경로,
+고정 커밋·스냅샷 식별자와 실행 역할의 필수 문서 목록을 알려 줘.
+필수 문서 목록 확인과 본문 읽기를 구분하고,
+기록된 원격 확인 시각과 이번 실제 읽기 시각도 구분해 줘.
+원격 동기화·프로젝트 실행·파일 변경은 하지 마.
+```
+
+자동 지침이 있고 두 JSON과 entry 본문을 읽었다면 연결이 확인된 것입니다. 이 확인은 현재 원격 최신 여부나 실제 모델 전환을 검증하지 않습니다. 읽기 실패는 실제 오류와 함께 보고하고 다른 환경의 경로로 임의 대체하지 않습니다.
+
+## 4. 갱신과 기존 작업
+
+새 터미널이면 1절의 경로 변수를 지정합니다. **도구나 연결 지침을 갱신할 때**는 로컬 수정 여부를 확인하고 `master`의 소스를 받습니다.
+
+```bash
+git -C "$workflow_source" status --short
+git -C "$workflow_source" switch master &&
+git -C "$workflow_source" pull --ff-only origin master
+```
+
+로컬 수정과 충돌하면 덮어쓰지 말고 해당 수정을 먼저 보존합니다. source를 받은 뒤 **규칙 사본을 갱신**합니다.
+
+```bash
+python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state" --branch master
+```
+
+규칙 본문만 바뀌면 sync로 끝납니다. 연결 템플릿·설치 도구·경로가 바뀌면 2절의 도구 연결도 다시 수행합니다. SSH용 MCP 도구 코드를 갱신했으면 실행 중인 HTTP 프로세스도 재시작합니다.
+
+새 작업은 새 active의 커밋을 선택하고 진행 중인 작업·하위 에이전트는 기존 고정 커밋을 유지합니다. 스냅샷을 직접 수정하거나 참조 중인 과거 사본을 삭제하지 않습니다. sync 실패 시 기존 사본을 최신이라고 부르지 않으며 최신 확인이 필수이면 시작을 보류합니다. `--offline`은 로컬 HEAD를 사용하고 원격 확인을 생략하는 명시적 선택입니다. 남은 `.sync-lock`은 owner.json의 프로세스·진행 여부부터 확인합니다.
+
+설치가 끝나면 [사용자 가이드](user-guide.md)의 단계별 요청을 사용합니다.
