@@ -1,8 +1,10 @@
-# SSH 작업에서 WSL의 워크플로우 읽기
+# 선택 사항: 다른 환경의 워크플로우를 MCP로 읽기
 
-개정: 2026-11-10
+개정: 2026-11-12
 
-이 문서는 **원격 SSH 서버에서 Cursor를 사용할 때만** 필요합니다. 먼저 PC의 [WSL 설치와 Cursor 연결](installation.md)을 마칩니다. WSL 로컬 프로젝트만 사용하면 여기의 추가 설정은 건너뜁니다.
+**집의 Windows Codex + WSL, 회사의 Windows Cursor + Linux 개발 PC 기본 셋업에서는 이 문서가 필요하지 않습니다.** 두 환경은 [셋업 안내](installation.md)에 따라 각각 같은 환경의 원문을 직접 읽습니다. Remote SSH를 사용한다는 이유만으로 MCP를 추가하지 않습니다.
+
+이 문서는 문서를 작업 서버에 둘 수 없어 **다른 컴퓨터의 사본을 제공해야 할 때만** 참고합니다. 아래는 PC의 WSL 문서를 원격 Cursor에 제공하는 기존 연결 예시입니다. 먼저 문서를 제공할 WSL에서 공통 설치를 수행합니다.
 
 워크플로우 source/runtime과 동기화는 PC의 WSL 한 곳에 둡니다. 서버에는 레포·Python·워크플로우 도구 대신 **MCP URL·인증 토큰 설정**만 등록합니다. 프로젝트 코드와 `.ai-work/` 기록은 기존 서버에 둡니다.
 
@@ -16,9 +18,10 @@ PC의 WSL: runtime → 읽기 전용 HTTP MCP
 
 ## 1. WSL에서 MCP 실행
 
-공통 설치의 `prepare-mcp`가 만든 토큰·설정을 사용합니다. 다음 명령을 실행하고 터미널을 열어 둡니다.
+이 선택 연결에 사용할 토큰·설정을 별도로 만든 뒤 HTTP MCP를 실행합니다. 기본 셋업의 공통 설치에는 `prepare-mcp`가 포함되지 않습니다. 다음 명령을 실행하고 터미널을 열어 둡니다.
 
 ```bash
+python3 "$workflow_source/scripts/workflow.py" prepare-mcp --state-dir "$workflow_state" &&
 python3 "$workflow_source/scripts/workflow_mcp.py" --state-dir "$workflow_state" --transport http
 ```
 
@@ -43,9 +46,24 @@ Cursor로 해당 서버의 코드 폴더를 엽니다. PC의 WSL에서 다음 �
 cat "$workflow_state/connectors/cursor-mcp-http.json"
 ```
 
-원격 설정은 일반적으로 해당 서버 사용자의 `~/.cursor/mcp.json`입니다. 설정 파일 전체를 덮어쓰지 말고 기존 항목을 보존합니다. 이 조각에는 인증 토큰이 있으므로 출력은 채팅·공개 로그·Git에 공유하지 않습니다. User Rules는 공통 설치에서 등록한 **동일한 `cursor-mcp.md` 지침**을 사용합니다.
+원격 설정은 일반적으로 해당 서버 사용자의 `~/.cursor/mcp.json`입니다. 설정 파일 전체를 덮어쓰지 말고 기존 항목을 보존합니다. 이 조각에는 인증 토큰이 있으므로 출력은 채팅·공개 로그·Git에 공유하지 않습니다.
 
-SSH 창의 MCP 목록에 `ai-workflow`가 보이면 새 대화에서 [공통 연결 확인](installation.md#3-연결-확인)을 수행합니다. 로컬 MCP 등록이 원격 창에도 자동 전달된다고 가정하지 않습니다. 원격 창에는 WSL의 Python을 실행하는 stdio 설정 대신 HTTP 설정을 사용합니다.
+User Rules에는 **이 선택 연결용 `cursor-mcp.md` 지침**을 사용합니다. 제공할 WSL에서 아래 파일을 표시해 기존 워크플로우 구역만 교체하고 다른 사용자 지침은 보존합니다. 기본 셋업의 `cursor.md`와 MCP 지침을 중복 등록하지 않습니다.
+
+```bash
+cat "$workflow_state/connectors/cursor-mcp.md"
+```
+
+SSH 창의 MCP 목록에 `ai-workflow`가 보이면 새 대화에서 다음을 요청합니다. 기본 셋업의 직접 읽기 확인과 구분합니다.
+
+```text
+프로젝트 실행·동기화·파일 변경 없이 MCP 연결만 확인해 줘.
+자동 지침에 ‘단계별 워크플로우 연결 (MCP)’이 없으면 없다고 보고해 줘.
+있으면 해당 MCP로 상태와 고정 커밋의 entry.md 본문을 읽고,
+호스트 경로·커밋·실제 읽기 여부와 기록된 원격 확인 시각을 구분해 알려 줘.
+```
+
+로컬 MCP 등록이 원격 창에도 자동 전달된다고 가정하지 않습니다. 원격 창에는 WSL의 Python을 실행하는 stdio 설정 대신 HTTP 설정을 사용합니다.
 
 ## 동작과 문제 확인
 

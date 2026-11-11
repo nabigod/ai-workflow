@@ -1,42 +1,47 @@
 # AI Workflow
 
-Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 개정 `2026-11-10`, 프로젝트 관리 구조 버전 `5`입니다.
+Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 규칙 기준 `2026-11-10`, 셋업 안내 개정 `2026-11-12`, 프로젝트 관리 구조 버전 `5`입니다.
 
-**작업용 PC의 WSL2에 한 번 설치**하고 여러 프로젝트에서 사용합니다. 전역 지침에는 짧은 연결 문구만 넣고 에이전트가 역할별 필수 원문을 읽습니다. 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 두고 Git에서 제외합니다.
+**집에서는 WSL + Windows Codex, 회사에서는 Linux 개발 PC + Windows Cursor**를 사용합니다. 워크플로우는 집의 WSL과 회사의 Linux 사용자 환경에 한 번씩 설치하고 여러 프로젝트에서 공유합니다. 전역 지침에는 짧은 연결 문구만 넣고 에이전트가 역할별 필수 원문을 읽습니다. 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 두고 Git에서 제외합니다.
 
 ## 설치와 사용
 
-[WSL 설치 안내](docs/installation.md)를 순서대로 진행합니다. 운영체제별 설치 방법을 선택할 필요가 없습니다.
+[집·회사 셋업 안내](docs/installation.md)의 공통 설치 후 해당 환경의 도구를 연결합니다. 두 환경 모두 로컬 파일을 직접 읽으며 MCP는 필요하지 않습니다.
+
+| 환경 | 파일 읽기·명령 실행 | 워크플로우 연결 |
+|---|---|---|
+| 집: Windows Codex | 작업용 WSL2 | WSL 원문 + 앱 전역 AGENTS.md |
+| 회사: Windows Cursor | Remote SSH로 연결한 Linux 개발 PC | 개발 PC 원문 + Cursor User Rules |
 
 | 순서 | 할 일 |
 |---|---|
-| 1. 공통 설치 | WSL에서 clone → sync → 연결 지침 생성 |
-| 2. 도구 연결 | Codex는 전역 AGENTS.md, Cursor는 MCP와 User Rules 등록 |
+| 1. 공통 설치 | 집의 WSL·회사의 Linux 개발 PC에서 각각 clone → sync → 연결 지침 생성 |
+| 2. 도구 연결 | 집의 Codex 전역 AGENTS.md 또는 회사의 Cursor User Rules 등록 |
 | 3. 연결 확인 | 실제 작업 창의 새 대화에서 고정 커밋과 본문 읽기 확인 |
 | 4. 프로젝트 사용 | [사용자 가이드](docs/user-guide.md)의 단계별 요청 |
 
-**Cursor로 원격 SSH 서버에서 작업할 때만** [추가 연결](docs/mcp.md)을 설정합니다. PC WSL의 HTTP MCP에 SSH 터널로 연결하므로 서버에는 MCP URL·토큰 설정만 필요하며 레포·Python을 설치하지 않습니다.
+회사에서는 하나의 Linux 개발 PC에서 총괄과 하위 에이전트를 운영하고 다른 testpc는 빌드·테스트 대상으로 사용합니다. 테스트만 실행하는 PC에는 워크플로우를 설치하지 않습니다. 문서를 다른 컴퓨터에서 제공해야 하는 경우에만 [선택 MCP 연결](docs/mcp.md)을 참고합니다.
 
 ## 파일과 읽기 흐름
 
 ```text
-PC의 WSL: ~/.ai-workflow/
+집의 WSL 또는 회사 Linux 사용자 홈: ~/.ai-workflow/
 ├── source/                       원본 Git clone과 관리 도구
 └── runtime/
     ├── active.json               새 작업의 커밋과 스냅샷 위치
     ├── sync-status.json          마지막 원격 확인 결과·시각
     ├── snapshots/<커밋>/         고정 버전의 문서 묶음
-    └── connectors/               Codex·Cursor 연결 지침과 MCP 설정
+    └── connectors/               Codex·Cursor의 짧은 연결 지침
 ```
 
-Codex는 연결 지침에서 WSL 파일을 직접 읽고, Cursor는 MCP로 같은 사본을 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할의 필수 문서 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
+집의 Codex는 WSL 파일을, 회사의 Cursor는 Remote SSH로 연결한 개발 PC의 파일을 직접 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할의 필수 문서 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
 
 | 저장소 위치 | 내용 |
 |---|---|
 | `workflow/entry.md` | 역할별 읽기 목록·버전 고정의 진입점 |
 | `workflow/` | 공통·모델·기록·품질과 역할별 운영 규칙 원본 |
-| `docs/installation.md` | WSL 설치·도구 연결·확인·갱신 |
-| `docs/mcp.md` | SSH 작업 시 추가 연결 |
+| `docs/installation.md` | 집·회사 공통 설치·도구 연결·확인·갱신 |
+| `docs/mcp.md` | 문서와 작업 환경을 분리할 때의 선택 연결 |
 | `docs/user-guide.md` | 단계별 사용 예시 |
 | `docs/maintenance.md` | 개정·배포·보존 기준 |
 | `scripts/`, `templates/`, `tests/` | 설치·MCP 도구, 짧은 연결 지침, 검사 |
