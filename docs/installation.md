@@ -9,7 +9,7 @@
 | WSL 에이전트 + Windows | Windows Codex 앱 | 작업용 WSL2 배포판 | 해당 WSL의 사용자 홈 |
 | Linux 에이전트 + Windows | Windows Cursor의 Remote SSH 창 | Linux 개발 PC | 해당 Linux 사용자의 홈 |
 
-**WSL 에이전트 + Windows**에서는 WSL Bash, **Linux 에이전트 + Windows**에서는 Linux 개발 PC에 연결한 SSH 터미널에서 아래 공통 명령을 실행합니다. Git·Python 3.10 이상과 해당 환경의 GitHub SSH 접근이 준비되어 있어야 합니다. 배포 브랜치는 `master`입니다.
+**WSL 에이전트 + Windows**에서는 WSL Bash, **Linux 에이전트 + Windows**에서는 Linux 개발 PC에 연결한 SSH 터미널에서 아래 공통 명령을 실행합니다. Git·Python 3.10 이상과 해당 환경의 GitHub SSH 접근이 준비되어 있어야 합니다. 배포 브랜치는 `main`입니다.
 
 ## 1. 공통 설치
 
@@ -23,13 +23,13 @@ workflow_state="$HOME/.ai-workflow/runtime"
 **처음 설치할 때만** 저장소를 받습니다. clone이 성공한 뒤 다음 명령으로 넘어갑니다.
 
 ```bash
-git clone --branch master git@github.com:nabigod/ai-workflow.git "$workflow_source"
+git clone --branch main git@github.com:nabigod/ai-workflow.git "$workflow_source"
 ```
 
-고정 사본과 연결 지침을 만듭니다. 기존 clone의 도구가 구버전이면 먼저 아래 갱신 절차로 `master`의 소스를 받습니다.
+고정 사본과 연결 지침을 만듭니다. 기존 clone의 도구가 구버전이면 먼저 아래 갱신 절차로 `main`의 소스를 받습니다.
 
 ```bash
-python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state" --branch master &&
+python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state" --branch main &&
 python3 "$workflow_source/scripts/workflow.py" render --state-dir "$workflow_state" --shell bash
 ```
 
@@ -136,15 +136,17 @@ git -C "$workflow_source" status --short
 
 ```bash
 git -C "$workflow_source" fetch origin &&
-git -C "$workflow_source" switch master &&
-git -C "$workflow_source" pull --ff-only origin master &&
+git -C "$workflow_source" switch main &&
+git -C "$workflow_source" pull --ff-only origin main &&
 python3 "$workflow_source/scripts/workflow.py" sync \
-  --repo "$workflow_source" --state-dir "$workflow_state" --branch master &&
+  --repo "$workflow_source" --state-dir "$workflow_state" --branch main &&
 python3 "$workflow_source/scripts/workflow.py" render \
   --state-dir "$workflow_state" --shell bash
 ```
 
-`pull`은 source의 도구·문서를 갱신하고, `sync`는 원격 `master`의 고정 사본과 active.json·확인 결과를 갱신합니다. `render`는 그 환경의 경로·동기화 브랜치가 들어간 연결 지침을 다시 만듭니다. sync 출력의 `commit`이 이번 선택 버전입니다. `render`만으로 앱에 이미 등록한 지침이 바뀌지는 않으므로 이어서 해당 환경의 연결을 갱신합니다.
+`pull`은 source의 도구·문서를 갱신하고, `sync`는 원격 `main`의 고정 사본과 active.json·확인 결과를 갱신합니다. `render`는 그 환경의 경로·동기화 브랜치가 들어간 연결 지침을 다시 만듭니다. sync 출력의 `commit`이 이번 선택 버전입니다. `render`만으로 앱에 이미 등록한 지침이 바뀌지는 않으므로 이어서 해당 환경의 연결을 갱신합니다.
+
+sync의 기본 브랜치도 `main`이므로 `--branch`를 생략한 기존 명령도 같은 원격 브랜치를 확인합니다. 이전 `master` 설치는 위 fetch·switch·pull로 source를 `main`으로 전환합니다. sync 후 active.json의 `branch`와 재생성한 연결 지침의 동기화 명령이 모두 `main`인지 확인하고 아래 재등록을 수행합니다. 기존에 `main`을 사용한 설치는 그대로 이 절차를 따릅니다.
 
 ### WSL 에이전트 + Windows: Codex 지침 재등록
 

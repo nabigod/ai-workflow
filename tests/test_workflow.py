@@ -71,6 +71,31 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(Path(old["entry"]).read_text(encoding="utf-8"), "first version\n")
         self.assertEqual(Path(new["entry"]).read_text(encoding="utf-8"), "second version\n")
 
+    def test_default_main_sync_replaces_master_connector_and_preserves_snapshot(self):
+        git(self.repo, "switch", "-c", "master")
+        (self.repo / "workflow/entry.md").write_text("legacy master version\n", encoding="utf-8")
+        legacy_commit = self.commit()
+        git(self.repo, "push", "origin", "master")
+        old = workflow.sync(self.repo, self.state, branch="master")
+        home = self.root / "codex home"
+        home.mkdir()
+        instructions = home / "AGENTS.md"
+        instructions.write_text("# Personal rules\nKeep my instructions.\n", encoding="utf-8")
+        workflow.install_codex(self.state, "bash", home)
+        self.assertIn("--branch master", instructions.read_text(encoding="utf-8"))
+
+        active = self.sync()
+        self.assertEqual(active["branch"], "main")
+        self.assertEqual(active["commit"], self.first)
+        workflow.install_codex(self.state, "bash", home)
+        updated = instructions.read_text(encoding="utf-8")
+        self.assertIn("--branch main", updated)
+        self.assertNotIn("--branch master", updated)
+        self.assertTrue(updated.startswith("# Personal rules\nKeep my instructions.\n"))
+        self.assertEqual(Path(old["entry"]).read_text(encoding="utf-8"), "legacy master version\n")
+        self.assertEqual(git(self.repo, "rev-parse", "HEAD"), legacy_commit)
+        self.assertEqual(git(self.repo, "branch", "--show-current"), "master")
+
     def test_offline_explicitly_marks_no_remote_check(self):
         active = self.sync(offline=True)
         self.assertEqual(active["source"], "local-head")
