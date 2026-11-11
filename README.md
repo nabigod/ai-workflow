@@ -1,31 +1,33 @@
 # AI Workflow
 
-Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 규칙 기준 `2026-11-10`, 셋업 안내 개정 `2026-11-12`, 프로젝트 관리 구조 버전 `5`입니다.
+Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 규칙 기준 `2026-11-12`, 셋업 안내 개정 `2026-11-12`, 프로젝트 관리 구조 버전 `5`입니다.
 
-**집에서는 WSL + Windows Codex, 회사에서는 Linux 개발 PC + Windows Cursor**를 사용합니다. 워크플로우는 집의 WSL과 회사의 Linux 사용자 환경에 한 번씩 설치하고 여러 프로젝트에서 공유합니다. 전역 지침에는 짧은 연결 문구만 넣고 에이전트가 역할별 필수 원문을 읽습니다. 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 두고 Git에서 제외합니다.
+**WSL 에이전트 + Windows Codex** 또는 **Linux 에이전트 + Windows Cursor**를 사용합니다. 워크플로우는 사용할 WSL·Linux 사용자 환경에 한 번씩 설치하고 여러 프로젝트에서 공유합니다. 전역 지침에는 짧은 연결 문구만 넣고 에이전트가 역할별 필수 원문을 읽습니다. 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 두고 Git에서 제외합니다.
 
 ## 설치와 사용
 
-[집·회사 셋업 안내](docs/installation.md)의 공통 설치 후 해당 환경의 도구를 연결합니다. 두 환경 모두 로컬 파일을 직접 읽으며 MCP는 필요하지 않습니다.
+[실행 환경별 셋업 안내](docs/installation.md)의 공통 설치 후 해당 환경의 도구를 연결합니다. 두 환경 모두 로컬 파일을 직접 읽으며 MCP는 필요하지 않습니다.
 
 | 환경 | 파일 읽기·명령 실행 | 워크플로우 연결 |
 |---|---|---|
-| 집: Windows Codex | 작업용 WSL2 | WSL 원문 + 앱 전역 AGENTS.md |
-| 회사: Windows Cursor | Remote SSH로 연결한 Linux 개발 PC | 개발 PC 원문 + Cursor User Rules |
+| WSL 에이전트 + Windows Codex | 작업용 WSL2 | WSL 원문 + 앱 전역 AGENTS.md |
+| Linux 에이전트 + Windows Cursor | Remote SSH로 연결한 Linux 개발 PC | 개발 PC 원문 + Cursor User Rules |
 
 | 순서 | 할 일 |
 |---|---|
-| 1. 공통 설치 | 집의 WSL·회사의 Linux 개발 PC에서 각각 clone → sync → 연결 지침 생성 |
-| 2. 도구 연결 | 집의 Codex 전역 AGENTS.md 또는 회사의 Cursor User Rules 등록 |
+| 1. 공통 설치 | 사용할 WSL·Linux 개발 PC에서 각각 clone → sync → 연결 지침 생성 |
+| 2. 도구 연결 | Codex 전역 AGENTS.md 또는 Cursor User Rules 등록 |
 | 3. 연결 확인 | 실제 작업 창의 새 대화에서 고정 커밋과 본문 읽기 확인 |
 | 4. 프로젝트 사용 | [사용자 가이드](docs/user-guide.md)의 단계별 요청 |
 
-회사에서는 하나의 Linux 개발 PC에서 총괄과 하위 에이전트를 운영하고 다른 testpc는 빌드·테스트 대상으로 사용합니다. 테스트만 실행하는 PC에는 워크플로우를 설치하지 않습니다. 문서를 다른 컴퓨터에서 제공해야 하는 경우에만 [선택 MCP 연결](docs/mcp.md)을 참고합니다.
+Linux 에이전트 환경에서는 하나의 개발 PC에서 총괄과 하위 에이전트를 운영하고 다른 testpc는 빌드·테스트 대상으로 사용합니다. 테스트만 실행하는 PC에는 워크플로우를 설치하지 않습니다. 문서를 다른 컴퓨터에서 제공해야 하는 경우에만 [선택 MCP 연결](docs/mcp.md)을 참고합니다.
+
+기존 설치를 업데이트하려면 [소스 갱신·sync·연결 지침 재등록](docs/installation.md#4-업데이트와-sync)을 따릅니다.
 
 ## 파일과 읽기 흐름
 
 ```text
-집의 WSL 또는 회사 Linux 사용자 홈: ~/.ai-workflow/
+에이전트의 WSL 또는 Linux 사용자 홈: ~/.ai-workflow/
 ├── source/                       원본 Git clone과 관리 도구
 └── runtime/
     ├── active.json               새 작업의 커밋과 스냅샷 위치
@@ -34,13 +36,13 @@ Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다
     └── connectors/               Codex·Cursor의 짧은 연결 지침
 ```
 
-집의 Codex는 WSL 파일을, 회사의 Cursor는 Remote SSH로 연결한 개발 PC의 파일을 직접 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할의 필수 문서 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
+Codex는 WSL 파일을, Cursor는 Remote SSH로 연결한 Linux 개발 PC의 파일을 직접 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할의 필수 문서 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
 
 | 저장소 위치 | 내용 |
 |---|---|
 | `workflow/entry.md` | 역할별 읽기 목록·버전 고정의 진입점 |
 | `workflow/` | 공통·모델·기록·품질과 역할별 운영 규칙 원본 |
-| `docs/installation.md` | 집·회사 공통 설치·도구 연결·확인·갱신 |
+| `docs/installation.md` | 실행 환경별 공통 설치·도구 연결·확인·sync |
 | `docs/mcp.md` | 문서와 작업 환경을 분리할 때의 선택 연결 |
 | `docs/user-guide.md` | 단계별 사용 예시 |
 | `docs/maintenance.md` | 개정·배포·보존 기준 |
@@ -64,4 +66,4 @@ python3 scripts/check_docs.py
 python3 -m unittest discover -s tests -v
 ```
 
-[유지보수 안내](docs/maintenance.md)는 문서·스크립트 검사와 실제 앱의 지침 로딩·모델 전환 검증을 구분합니다. 모델 계열의 버전 기준일은 `2026-11-07`이며 현재 환경의 가용성은 배정 시 확인합니다.
+[유지보수 안내](docs/maintenance.md)는 문서·스크립트 검사와 실제 앱의 지침 로딩·모델 전환 검증을 구분합니다. 모델의 기준 버전·추론 강도는 [모델 배정표](workflow/models.md)를 따르며 현재 환경의 가용성은 배정 시 확인합니다.

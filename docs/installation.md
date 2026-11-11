@@ -1,4 +1,4 @@
-# 집과 회사의 워크플로우 셋업
+# 실행 환경별 워크플로우 셋업
 
 개정: 2026-11-12
 
@@ -6,14 +6,14 @@
 
 | 환경 | 요청하는 화면 | 파일 읽기·명령 실행 위치 | source/runtime 설치 위치 |
 |---|---|---|---|
-| 집 | Windows Codex 앱 | 작업용 WSL2 배포판 | 해당 WSL의 사용자 홈 |
-| 회사 | Windows Cursor의 Remote SSH 창 | Linux 개발 PC | 해당 Linux 사용자의 홈 |
+| WSL 에이전트 + Windows | Windows Codex 앱 | 작업용 WSL2 배포판 | 해당 WSL의 사용자 홈 |
+| Linux 에이전트 + Windows | Windows Cursor의 Remote SSH 창 | Linux 개발 PC | 해당 Linux 사용자의 홈 |
 
-집에서는 **WSL Bash**, 회사에서는 **Linux 개발 PC에 연결한 SSH 터미널**에서 아래 공통 명령을 실행합니다. Git·Python 3.10 이상과 해당 환경의 GitHub SSH 접근이 준비되어 있어야 합니다. 배포 브랜치는 `master`입니다.
+**WSL 에이전트 + Windows**에서는 WSL Bash, **Linux 에이전트 + Windows**에서는 Linux 개발 PC에 연결한 SSH 터미널에서 아래 공통 명령을 실행합니다. Git·Python 3.10 이상과 해당 환경의 GitHub SSH 접근이 준비되어 있어야 합니다. 배포 브랜치는 `master`입니다.
 
 ## 1. 공통 설치
 
-집의 WSL과 회사의 Linux 개발 PC에서 **각각 한 번씩** 준비합니다. 기존 clone이 있다면 `workflow_source`만 실제 위치로 바꾸고 clone 명령은 건너뜁니다. 새 터미널에서 관리 명령을 사용할 때도 이 변수부터 지정합니다.
+사용할 WSL 또는 Linux 사용자 환경에서 **각각 한 번씩** 준비합니다. 기존 clone이 있다면 `workflow_source`만 실제 위치로 바꾸고 clone 명령은 건너뜁니다. 새 터미널에서 관리 명령을 사용할 때도 이 변수부터 지정합니다.
 
 ```bash
 workflow_source="$HOME/.ai-workflow/source"
@@ -43,17 +43,17 @@ python3 "$workflow_source/scripts/workflow.py" render --state-dir "$workflow_sta
     ├── sync-status.json          마지막 원격 확인 결과와 시각
     ├── snapshots/<커밋>/         작업에 사용할 고정 사본
     └── connectors/
-        ├── codex.md              집의 Codex 전역 지침에 넣을 내용
-        └── cursor.md             회사의 Cursor User Rules에 넣을 내용
+        ├── codex.md              Windows Codex 전역 지침에 넣을 내용
+        └── cursor.md             Windows Cursor User Rules에 넣을 내용
 ```
 
 `sync`는 원격을 fetch해 사본을 만들고 source 작업 파일은 변경하지 않습니다. 실패하면 기존 active를 유지하고 실패 결과를 기록합니다. `render`만으로 앱 설정이 바뀌지는 않으므로 이어서 해당 환경의 도구를 연결합니다.
 
-집과 회사는 경로가 다를 수 있으므로 각 환경에서 생성한 연결 지침을 사용합니다. Windows의 active.json이나 다른 환경의 연결 지침을 그대로 복사하지 않습니다. 이전 작업이 참조하는 runtime·고정 사본은 보존합니다.
+WSL과 Linux 개발 PC는 경로가 다를 수 있으므로 각 환경에서 생성한 연결 지침을 사용합니다. Windows의 active.json이나 다른 환경의 연결 지침을 그대로 복사하지 않습니다. 이전 작업이 참조하는 runtime·고정 사본은 보존합니다.
 
 ## 2. 환경별 도구 연결
 
-### 집: Windows Codex와 WSL
+### WSL 에이전트 + Windows: Codex 연결
 
 Codex 앱에서 **Agent environment와 통합 터미널을 WSL로 설정한 뒤 앱을 재시작**하고 해당 WSL의 프로젝트를 엽니다. 에이전트 환경과 터미널 설정은 별개입니다. [공식 Windows 앱 안내](https://learn.chatgpt.com/docs/windows/windows-app)
 
@@ -68,7 +68,7 @@ Windows Codex 앱의 기본 설정 폴더는 Windows 사용자 홈의 `.codex`�
 
 명령은 대상 `AGENTS.md`의 워크플로우 구역만 추가·갱신하고 기존 사용자 지침은 보존합니다. 변경 전 백업을 만들며 출력된 경로가 설치 결과입니다. 추가 파일 복사나 심볼릭 링크 생성은 필요 없습니다. `AGENTS.override.md`, 이전 전체 워크플로우나 심볼릭 링크 때문에 중단되면 기존 설정을 검토하고 충돌만 해소합니다. [전역 지침 탐색 공식 안내](https://learn.chatgpt.com/docs/agent-configuration/agents-md)
 
-### 회사: Windows Cursor와 Linux 개발 PC
+### Linux 에이전트 + Windows: Cursor 연결
 
 Windows Cursor의 **Remote SSH로 모든 에이전트 작업을 수행할 Linux 개발 PC에 연결**하고 프로젝트 폴더를 엽니다. Windows에 파일만 마운트한 폴더를 여는 방식과 구분합니다. [Remote SSH 공식 안내](https://cursor.com/help/troubleshooting/network)
 
@@ -79,13 +79,13 @@ hostname
 pwd
 ```
 
-공통 설치에서 생성한 회사용 연결 지침을 표시합니다.
+해당 Linux 개발 PC에서 생성한 연결 지침을 표시합니다.
 
 ```bash
 cat "$workflow_state/connectors/cursor.md"
 ```
 
-Windows Cursor의 **Customize → Rules → User Rules**에서 기존 워크플로우 부분을 표시된 지침 전체로 교체합니다. 다른 사용자 규칙은 보존합니다. 이 지침의 active.json 경로가 **회사 Linux 개발 PC의 실제 경로**인지 확인합니다. 파일 경로 한 줄만 붙이지 않고 생성된 연결 지침 전체를 등록합니다. [Cursor 규칙 공식 안내](https://cursor.com/docs/rules)
+Windows Cursor의 **Customize → Rules → User Rules**에서 기존 워크플로우 부분을 표시된 지침 전체로 교체합니다. 다른 사용자 규칙은 보존합니다. 이 지침의 active.json 경로가 **에이전트가 작업하는 Linux 개발 PC의 실제 경로**인지 확인합니다. 파일 경로 한 줄만 붙이지 않고 생성된 연결 지침 전체를 등록합니다. [Cursor 규칙 공식 안내](https://cursor.com/docs/rules)
 
 Cursor 설정을 등록하는 화면은 Windows에 있지만, 지침의 `/home/...` 경로는 해당 SSH 작업 창의 Linux 개발 PC에서 읽습니다. User Rules는 여러 프로젝트에 적용되므로 같은 개발 PC·사용자로 작업하는 창에서 사용합니다. Windows 로컬 창이나 다른 서버에서 같은 경로가 통한다고 가정하지 않습니다.
 
@@ -93,13 +93,13 @@ Cursor 설정을 등록하는 화면은 Windows에 있지만, 지침의 `/home/.
 
 ### 기존 MCP 연결에서 옮기는 경우
 
-회사 Linux 개발 PC에 공통 자료를 준비하고 User Rules의 MCP 워크플로우 구역을 위 `cursor.md` 지침으로 교체합니다. 새 대화에서 아래 직접 읽기 확인이 끝나면, 기존 MCP 설정의 **`ai-workflow` 항목만** 비활성화하거나 백업 후 제거할 수 있습니다. 다른 MCP 설정과 이전 고정 사본은 보존합니다. 이 안내를 읽는 것만으로 실행 중인 서버·터널을 종료하거나 앱 설정을 변경하지 않습니다.
+Linux 개발 PC에 공통 자료를 준비하고 User Rules의 MCP 워크플로우 구역을 위 `cursor.md` 지침으로 교체합니다. 새 대화에서 아래 직접 읽기 확인이 끝나면, 기존 MCP 설정의 **`ai-workflow` 항목만** 비활성화하거나 백업 후 제거할 수 있습니다. 다른 MCP 설정과 이전 고정 사본은 보존합니다. 이 안내를 읽는 것만으로 실행 중인 서버·터널을 종료하거나 앱 설정을 변경하지 않습니다.
 
-MCP는 문서와 에이전트가 서로 다른 환경에 있을 때의 [선택 연결](mcp.md)로 남깁니다. 집·회사 기본 셋업에서는 사용하지 않습니다.
+MCP는 문서와 에이전트가 서로 다른 환경에 있을 때의 [선택 연결](mcp.md)로 남깁니다. 위 두 기본 셋업에서는 사용하지 않습니다.
 
 ## 3. 연결 확인
 
-집에서는 **WSL 프로젝트를 연 Codex**, 회사에서는 **Linux 개발 PC에 연결한 Cursor**의 새 대화에서 각각 다음을 요청합니다. 지침 본문이나 경로를 질문에 붙이지 않아야 자동 로딩 여부를 확인할 수 있습니다.
+**WSL 프로젝트를 연 Windows Codex** 또는 **Linux 개발 PC에 Remote SSH로 연결한 Windows Cursor**의 새 대화에서 다음을 요청합니다. 지침 본문이나 경로를 질문에 붙이지 않아야 자동 로딩 여부를 확인할 수 있습니다.
 
 ```text
 프로젝트를 실행하지 말고 연결 확인만 해 줘.
@@ -116,27 +116,65 @@ MCP는 문서와 에이전트가 서로 다른 환경에 있을 때의 [선택 �
 
 자동 지침이 있고 두 JSON과 entry 본문을 직접 읽었다면 해당 환경의 연결이 확인된 것입니다. 이것은 현재 원격 최신 여부나 실제 모델 전환·하위 에이전트의 상속 설정 검증을 대신하지 않습니다.
 
-파일 읽기가 실패하면 실제 오류를 확인합니다. 집에서는 Codex의 WSL 환경·설정 폴더, 회사에서는 SSH 호스트·사용자·Linux 경로를 대조합니다. 작업 공간 밖 읽기 승인이나 허용 경로가 필요한 경우에는 해당 runtime의 읽기 범위를 확인합니다. 다른 컴퓨터의 경로나 MCP로 임의 대체하지 않습니다.
+파일 읽기가 실패하면 실제 오류를 확인합니다. WSL 에이전트 환경에서는 Codex의 WSL 설정·설정 폴더를, Linux 에이전트 환경에서는 SSH 호스트·사용자·Linux 경로를 대조합니다. 작업 공간 밖 읽기 승인이나 허용 경로가 필요한 경우에는 해당 runtime의 읽기 범위를 확인합니다. 다른 컴퓨터의 경로나 MCP로 임의 대체하지 않습니다.
 
-## 4. 갱신과 기존 작업
+## 4. 업데이트와 sync
 
-관리 명령은 집의 WSL 또는 회사 Linux 개발 PC에서 실행합니다. 새 터미널이면 1절의 경로 변수를 지정합니다. **도구나 연결 지침을 갱신할 때**는 로컬 수정 여부를 확인하고 `master`의 소스를 받습니다.
+### 소스 갱신 → sync → 연결 지침 재생성
+
+기존 설치를 최신 배포본으로 업데이트할 때 아래 순서로 실행합니다. **WSL 에이전트 + Windows**에서는 WSL 터미널, **Linux 에이전트 + Windows**에서는 Linux 개발 PC의 SSH 터미널을 사용합니다. clone은 반복하지 않습니다.
+
+새 터미널에서 경로를 지정합니다. 기존 clone 위치가 다르면 `workflow_source`만 바꿉니다.
 
 ```bash
+workflow_source="$HOME/.ai-workflow/source"
+workflow_state="$HOME/.ai-workflow/runtime"
 git -C "$workflow_source" status --short
-git -C "$workflow_source" switch master &&
-git -C "$workflow_source" pull --ff-only origin master
 ```
 
-로컬 수정과 충돌하면 덮어쓰지 말고 해당 수정을 먼저 보존합니다. source를 받은 뒤 **규칙 사본을 갱신**합니다.
+로컬 수정이 있으면 먼저 보존합니다. 이어서 아래 블록을 실행합니다. 명령이 실패하면 뒤 단계는 실행되지 않습니다.
 
 ```bash
-python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --state-dir "$workflow_state" --branch master
+git -C "$workflow_source" fetch origin &&
+git -C "$workflow_source" switch master &&
+git -C "$workflow_source" pull --ff-only origin master &&
+python3 "$workflow_source/scripts/workflow.py" sync \
+  --repo "$workflow_source" --state-dir "$workflow_state" --branch master &&
+python3 "$workflow_source/scripts/workflow.py" render \
+  --state-dir "$workflow_state" --shell bash
 ```
 
-규칙 본문만 바뀌면 sync로 끝납니다. 연결 템플릿·설치 도구·경로가 바뀌면 2절의 해당 도구 연결도 다시 수행합니다. 집과 회사에서 같은 개정을 사용하려면 각각 sync한 뒤 커밋을 대조합니다. 원격을 확인하지 못한 환경의 사본을 최신이라고 부르지 않습니다.
+`pull`은 source의 도구·문서를 갱신하고, `sync`는 원격 `master`의 고정 사본과 active.json·확인 결과를 갱신합니다. `render`는 그 환경의 경로·동기화 브랜치가 들어간 연결 지침을 다시 만듭니다. sync 출력의 `commit`이 이번 선택 버전입니다. `render`만으로 앱에 이미 등록한 지침이 바뀌지는 않으므로 이어서 해당 환경의 연결을 갱신합니다.
 
-새 작업은 새 active의 커밋을 선택하고 진행 중인 작업·하위 에이전트는 기존 고정 커밋을 유지합니다. 스냅샷을 직접 수정하거나 참조 중인 과거 사본을 삭제하지 않습니다. 최신 확인이 필수인데 sync에 실패하면 시작을 보류합니다. `--offline`은 로컬 HEAD를 사용하고 원격 확인을 생략하는 명시적 선택입니다. 남은 `.sync-lock`은 owner.json의 프로세스·진행 여부부터 확인합니다.
+### WSL 에이전트 + Windows: Codex 지침 재등록
+
+`swook`을 실제 Windows 사용자 폴더명으로 바꿉니다. 별도 설정 폴더를 쓰면 해당 경로를 지정합니다.
+
+```bash
+python3 "$workflow_source/scripts/workflow.py" install-codex \
+  --state-dir "$workflow_state" --shell bash \
+  --codex-home "/mnt/c/Users/swook/.codex"
+```
+
+기존 워크플로우 구역을 갱신하며 다른 사용자 지침은 보존합니다. 이미 같은 내용이면 다시 쓰거나 백업을 추가하지 않습니다.
+
+### Linux 에이전트 + Windows: Cursor 지침 재등록
+
+Linux 개발 PC에서 새 연결 지침을 표시합니다.
+
+```bash
+cat "$workflow_state/connectors/cursor.md"
+```
+
+출력 전체로 Windows Cursor **User Rules의 기존 워크플로우 구역만** 교체하고 다른 사용자 규칙은 보존합니다. 이전 MCP 지침이 있으면 이 직접 읽기 지침으로 교체합니다.
+
+### 적용 확인과 기존 작업
+
+해당 환경의 **새 대화**에서 [연결 확인](#3-연결-확인)을 수행하고 실제 읽은 커밋을 sync 출력과 대조합니다. 문서 변경만으로 기존 대화의 지침이나 실제 선택 모델이 자동 전환되지는 않습니다. 모델 배정표가 바뀌었다면 [명령별 모델·추론 강도](user-guide.md#8-여러-대화와-모델-사용하기)도 확인해 앱에서 선택하거나 지원되는 위임 설정에 명시합니다.
+
+규칙 본문만 갱신하고 경로·연결 지침이 그대로인 경우에는 `sync`만으로 새 사본을 선택할 수 있습니다. 소스 도구·연결 지침·모델 정책까지 포함된 배포본을 받을 때는 위 전체 흐름을 사용합니다. 여러 환경에서 같은 개정을 사용하려면 각각 sync한 뒤 커밋을 대조합니다.
+
+진행 중인 작업·하위 에이전트는 기존 고정 커밋을 유지하고 새 작업부터 새 active를 선택합니다. 스냅샷을 직접 수정하거나 참조 중인 과거 사본을 삭제하지 않습니다. 원격 확인 실패를 최신 확인 성공으로 보고하지 않으며 최신 확인이 필수이면 시작을 보류합니다. `--offline`은 로컬 HEAD를 사용하고 원격 확인을 생략하는 명시적 선택입니다. 남은 `.sync-lock`은 owner.json의 프로세스·진행 여부부터 확인합니다.
 
 Docker의 사내 Nexus 이미지 접근·DNS·프록시는 사용자 테스트 전까지 미확인입니다. 워크플로우 연결 확인과 별도로 다룹니다.
 
