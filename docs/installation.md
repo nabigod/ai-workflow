@@ -4,21 +4,25 @@
 
 아래 두 환경을 기준으로 합니다. **워크플로우는 에이전트가 파일을 읽고 명령을 실행하는 환경에 한 번 설치**하고 여러 프로젝트에서 공유합니다. 두 환경 모두 문서를 직접 읽으므로 MCP 설정은 필요하지 않습니다.
 
-| 환경 | 요청하는 화면 | 파일 읽기·명령 실행 위치 | source/runtime 설치 위치 |
+| 환경 | 요청하는 화면 | 파일 읽기·명령 실행 위치 | source / runtime 위치 |
 |---|---|---|---|
-| WSL 에이전트 + Windows | Windows Codex 앱 | 작업용 WSL2 배포판 | 해당 WSL의 사용자 홈 |
-| Linux 에이전트 + Windows | Windows Cursor의 Remote SSH 창 | Linux 개발 PC | 해당 Linux 사용자의 홈 |
+| WSL 에이전트 + Windows | Windows Codex 앱 | 작업용 WSL2 배포판 | WSL의 원하는 경로 / WSL 사용자 홈 |
+| Linux 에이전트 + Windows | Windows Cursor의 Remote SSH 창 | Linux 개발 PC | Linux의 원하는 경로 / Linux 사용자 홈 |
 
 **WSL 에이전트 + Windows**에서는 WSL Bash, **Linux 에이전트 + Windows**에서는 Linux 개발 PC에 연결한 SSH 터미널에서 아래 공통 명령을 실행합니다. Git·Python 3.10 이상과 해당 환경의 GitHub SSH 접근이 준비되어 있어야 합니다. 배포 브랜치는 `main`입니다.
 
 ## 1. 공통 설치
 
-사용할 WSL 또는 Linux 사용자 환경에서 **각각 한 번씩** 준비합니다. 기존 clone이 있다면 `workflow_source`만 실제 위치로 바꾸고 clone 명령은 건너뜁니다. 새 터미널에서 관리 명령을 사용할 때도 이 변수부터 지정합니다.
+사용할 WSL 또는 Linux 사용자 환경에서 **각각 한 번씩** 준비합니다. **원본 저장소는 원하는 위치에 clone하고, runtime은 사용자 홈에 따로 둡니다.** 두 경로를 함께 옮길 필요는 없습니다.
+
+`workflow_source`를 해당 환경에서 읽고 쓸 수 있는 원하는 절대 경로로 바꿉니다. 아래 `/data/repos/ai-workflow`는 예시입니다. 기존 clone이 있다면 그 실제 위치를 지정하고 clone 명령은 건너뜁니다. `workflow_state`는 설치 후에도 같은 경로를 사용합니다. 새 터미널에서 관리 명령을 사용할 때도 이 변수부터 지정합니다.
 
 ```bash
-workflow_source="$HOME/.ai-workflow/source"
+workflow_source="/data/repos/ai-workflow"
 workflow_state="$HOME/.ai-workflow/runtime"
 ```
+
+runtime을 `~/.ai_workflow`에 두려면 처음 설치할 때 `workflow_state="$HOME/.ai_workflow"`로 지정해도 됩니다. 기존 안내의 `~/.ai-workflow/runtime`과는 다른 폴더이므로, 이미 설치했다면 기존 runtime 경로를 유지합니다. runtime에는 상태 JSON뿐 아니라 고정 사본과 연결 지침도 저장됩니다.
 
 **처음 설치할 때만** 저장소를 받습니다. clone이 성공한 뒤 다음 명령으로 넘어갑니다.
 
@@ -33,18 +37,17 @@ python3 "$workflow_source/scripts/workflow.py" sync --repo "$workflow_source" --
 python3 "$workflow_source/scripts/workflow.py" render --state-dir "$workflow_state" --shell bash
 ```
 
-제품 프로젝트 밖의 사용자 홈에 다음 자료가 생깁니다. 변수는 현재 터미널용이며 영구 환경변수 등록은 필요 없습니다.
+원본과 runtime은 다음처럼 분리됩니다. 변수는 현재 터미널용이며 영구 환경변수 등록은 필요 없습니다.
 
 ```text
-~/.ai-workflow/
-├── source/                       원본과 관리 도구의 Git clone
-└── runtime/
-    ├── active.json               선택한 커밋·스냅샷·entry 절대 경로
-    ├── sync-status.json          마지막 원격 확인 결과와 시각
-    ├── snapshots/<커밋>/         작업에 사용할 고정 사본
-    └── connectors/
-        ├── codex.md              Windows Codex 전역 지침에 넣을 내용
-        └── cursor.md             Windows Cursor User Rules에 넣을 내용
+/data/repos/ai-workflow/           원하는 위치의 원본 Git clone과 관리 도구
+~/.ai-workflow/runtime/            사용자 홈의 runtime (workflow_state)
+├── active.json                   선택한 커밋·스냅샷·entry 절대 경로
+├── sync-status.json              마지막 원격 확인 결과와 시각
+├── snapshots/<커밋>/             작업에 사용할 고정 사본
+└── connectors/
+    ├── codex.md                  Windows Codex 전역 지침에 넣을 내용
+    └── cursor.md                 Windows Cursor User Rules에 넣을 내용
 ```
 
 `sync`는 원격을 fetch해 사본을 만들고 source 작업 파일은 변경하지 않습니다. 실패하면 기존 active를 유지하고 실패 결과를 기록합니다. `render`만으로 앱 설정이 바뀌지는 않으므로 이어서 해당 환경의 도구를 연결합니다.
@@ -124,10 +127,10 @@ MCP는 문서와 에이전트가 서로 다른 환경에 있을 때의 [선택 �
 
 기존 설치를 최신 배포본으로 업데이트할 때 아래 순서로 실행합니다. **WSL 에이전트 + Windows**에서는 WSL 터미널, **Linux 에이전트 + Windows**에서는 Linux 개발 PC의 SSH 터미널을 사용합니다. clone은 반복하지 않습니다.
 
-새 터미널에서 경로를 지정합니다. 기존 clone 위치가 다르면 `workflow_source`만 바꿉니다.
+새 터미널에서 `workflow_source`에 실제 clone 위치를, `workflow_state`에 기존 runtime 위치를 지정합니다. 아래 원본 경로는 예시이므로 설치할 때 선택한 경로로 바꿉니다.
 
 ```bash
-workflow_source="$HOME/.ai-workflow/source"
+workflow_source="/data/repos/ai-workflow"
 workflow_state="$HOME/.ai-workflow/runtime"
 git -C "$workflow_source" status --short
 ```
@@ -169,6 +172,23 @@ cat "$workflow_state/connectors/cursor.md"
 ```
 
 출력 전체로 Windows Cursor **User Rules의 기존 워크플로우 구역만** 교체하고 다른 사용자 규칙은 보존합니다. 이전 MCP 지침이 있으면 이 직접 읽기 지침으로 교체합니다.
+
+### 원본 clone 위치를 바꾸는 경우
+
+기존 clone을 옮기거나 원하는 위치에 새로 clone한 뒤 `workflow_source`를 새 절대 경로로 지정합니다. 기존 clone의 로컬 수정·미추적 파일은 먼저 보존합니다. runtime은 기존 위치에 그대로 두고 다음을 실행합니다.
+
+```bash
+workflow_source="/새로운/경로/ai-workflow"
+workflow_state="$HOME/.ai-workflow/runtime" # 기존에 사용하던 runtime 경로
+python3 "$workflow_source/scripts/workflow.py" sync \
+  --repo "$workflow_source" --state-dir "$workflow_state" --branch main &&
+python3 "$workflow_source/scripts/workflow.py" render \
+  --state-dir "$workflow_state" --shell bash
+```
+
+이어서 위의 환경별 지침 재등록을 수행합니다. Codex는 `install-codex`를 다시 실행하고, Cursor는 새 `cursor.md`로 기존 워크플로우 구역을 교체합니다. **변수만 바꾸면 이미 등록한 지침은 갱신되지 않습니다.** `sync`가 active.json의 원본 저장소 경로를 갱신하고, `render`와 재등록이 지침에 포함된 다음 동기화 명령까지 새 경로로 바꿉니다.
+
+원본만 옮긴 경우 runtime과 기존 스냅샷은 이동할 필요가 없습니다. 기존에 `~/.ai_workflow` 등 다른 runtime을 사용했다면 위 `workflow_state`도 그 기존 경로로 지정합니다. 새 대화에서 아래 연결 확인을 마친 뒤 이전 clone의 정리 여부를 판단합니다.
 
 ### 적용 확인과 기존 작업
 

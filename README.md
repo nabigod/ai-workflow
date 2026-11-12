@@ -6,7 +6,7 @@ Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다
 
 ## 설치와 사용
 
-[실행 환경별 셋업 안내](docs/installation.md)의 공통 설치 후 해당 환경의 도구를 연결합니다. 두 환경 모두 로컬 파일을 직접 읽으며 MCP는 필요하지 않습니다.
+[실행 환경별 셋업 안내](docs/installation.md)의 공통 설치 후 해당 환경의 도구를 연결합니다. 원본 저장소는 해당 WSL·Linux의 원하는 위치에 clone하고 `workflow_source`로 지정합니다. runtime은 사용자 홈에 따로 둡니다. 두 환경 모두 로컬 파일을 직접 읽으며 MCP는 필요하지 않습니다.
 
 | 환경 | 파일 읽기·명령 실행 | 워크플로우 연결 |
 |---|---|---|
@@ -27,14 +27,15 @@ Linux 에이전트 환경에서는 하나의 개발 PC에서 총괄과 하위 �
 ## 파일과 읽기 흐름
 
 ```text
-에이전트의 WSL 또는 Linux 사용자 홈: ~/.ai-workflow/
-├── source/                       원본 Git clone과 관리 도구
-└── runtime/
-    ├── active.json               새 작업의 커밋과 스냅샷 위치
-    ├── sync-status.json          마지막 원격 확인 결과·시각
-    ├── snapshots/<커밋>/         고정 버전의 문서 묶음
-    └── connectors/               Codex·Cursor의 짧은 연결 지침
+원하는 경로/ai-workflow/           원본 Git clone과 관리 도구 (workflow_source)
+~/.ai-workflow/runtime/            사용자 홈의 runtime (workflow_state)
+├── active.json                   새 작업의 커밋과 스냅샷 위치
+├── sync-status.json              마지막 원격 확인 결과·시각
+├── snapshots/<커밋>/             고정 버전의 문서 묶음
+└── connectors/                   Codex·Cursor의 짧은 연결 지침
 ```
+
+원본 위치를 바꿀 때는 기존 runtime을 유지하고 `workflow_source` 변경 → sync → render → 도구별 지침 재등록을 수행합니다. 자세한 순서는 [원본 위치 변경 안내](docs/installation.md#원본-clone-위치를-바꾸는-경우)를 따릅니다.
 
 Codex는 WSL 파일을, Cursor는 Remote SSH로 연결한 Linux 개발 PC의 파일을 직접 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할의 필수 문서 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
 
