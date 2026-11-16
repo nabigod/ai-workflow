@@ -1,6 +1,6 @@
 # 실행 환경별 워크플로우 셋업
 
-개정: 2026-11-12
+개정: 2026-11-17
 
 아래 두 환경을 기준으로 합니다. **워크플로우는 에이전트가 파일을 읽고 명령을 실행하는 환경에 한 번 설치**하고 여러 프로젝트에서 공유합니다. 두 환경 모두 문서를 직접 읽으므로 MCP 설정은 필요하지 않습니다.
 
@@ -15,7 +15,7 @@
 
 사용할 WSL 또는 Linux 사용자 환경에서 **각각 한 번씩** 준비합니다. **원본 저장소는 원하는 위치에 clone하고, runtime은 사용자 홈에 따로 둡니다.** 두 경로를 함께 옮길 필요는 없습니다.
 
-`workflow_source`를 해당 환경에서 읽고 쓸 수 있는 원하는 절대 경로로 바꿉니다. 아래 `/data/repos/ai-workflow`는 예시입니다. 기존 clone이 있다면 그 실제 위치를 지정하고 clone 명령은 건너뜁니다. `workflow_state`는 설치 후에도 같은 경로를 사용합니다. 새 터미널에서 관리 명령을 사용할 때도 이 변수부터 지정합니다.
+`workflow_source`를 해당 환경에서 읽고 쓸 수 있는 원하는 절대 경로로 바꿉니다. 아래 `/data/repos/ai-workflow`는 예시입니다. 기존 clone이 있다면 그 실제 위치를 지정하고 clone 명령은 건너뜁니다. `workflow_state`는 설치 후에도 같은 경로를 사용합니다. 아래 설치 명령을 새 터미널에서 이어서 실행할 때도 이 변수부터 지정합니다. 업데이트는 [4절](#4-업데이트와-sync)의 명령을 사용합니다.
 
 ```bash
 workflow_source="/data/repos/ai-workflow"
@@ -124,55 +124,47 @@ MCP는 문서와 에이전트가 서로 다른 환경에 있을 때의 [선택 �
 
 ## 4. 업데이트와 sync
 
-### 소스 갱신 → sync → 연결 지침 재생성
+**로컬 수정이 없고, ai-workflow를 clone한 폴더에서 실행하는 경우**입니다. `scripts/workflow.py`가 보이는 폴더에서 시작하세요. Codex는 WSL 터미널, Cursor는 Linux 개발 PC의 SSH 터미널을 사용합니다.
 
-기존 설치를 최신 배포본으로 업데이트할 때 아래 순서로 실행합니다. **WSL 에이전트 + Windows**에서는 WSL 터미널, **Linux 에이전트 + Windows**에서는 Linux 개발 PC의 SSH 터미널을 사용합니다. clone은 반복하지 않습니다.
+### ① 최신 버전 받기
 
-새 터미널에서 `workflow_source`에 실제 clone 위치를, `workflow_state`에 기존 runtime 위치를 지정합니다. 아래 원본 경로는 예시이므로 설치할 때 선택한 경로로 바꿉니다.
+아래 블록을 그대로 실행합니다. runtime을 다른 위치에 설치했다면 첫 줄만 기존 경로로 바꿉니다.
 
 ```bash
-workflow_source="/data/repos/ai-workflow"
 workflow_state="$HOME/.ai-workflow/runtime"
-git -C "$workflow_source" status --short
+git switch main &&
+git pull --ff-only origin main &&
+python3 scripts/workflow.py sync --repo "$PWD" --state-dir "$workflow_state" --branch main
 ```
 
-로컬 수정이 있으면 먼저 보존합니다. 이어서 아래 블록을 실행합니다. 명령이 실패하면 뒤 단계는 실행되지 않습니다.
+`pull`은 현재 폴더의 도구·문서를, `sync`는 에이전트가 읽을 고정 사본을 갱신합니다. 마지막 출력의 `commit`이 적용 버전입니다. 오류가 나면 다음 단계로 넘어가지 말고 해당 오류를 먼저 해결합니다.
+
+### ② 사용하는 도구의 연결 지침 갱신
+
+**Codex:** 같은 터미널에서 아래 명령을 실행합니다. `swook`을 실제 Windows 사용자 폴더명으로 바꾸고, 별도 Codex 설정 폴더를 쓰면 그 경로를 지정합니다.
 
 ```bash
-git -C "$workflow_source" fetch origin &&
-git -C "$workflow_source" switch main &&
-git -C "$workflow_source" pull --ff-only origin main &&
-python3 "$workflow_source/scripts/workflow.py" sync \
-  --repo "$workflow_source" --state-dir "$workflow_state" --branch main &&
-python3 "$workflow_source/scripts/workflow.py" render \
-  --state-dir "$workflow_state" --shell bash
+python3 scripts/workflow.py install-codex --state-dir "$workflow_state" --shell bash --codex-home "/mnt/c/Users/swook/.codex"
 ```
 
-`pull`은 source의 도구·문서를 갱신하고, `sync`는 원격 `main`의 고정 사본과 active.json·확인 결과를 갱신합니다. `render`는 그 환경의 경로·동기화 브랜치가 들어간 연결 지침을 다시 만듭니다. sync 출력의 `commit`이 이번 선택 버전입니다. `render`만으로 앱에 이미 등록한 지침이 바뀌지는 않으므로 이어서 해당 환경의 연결을 갱신합니다.
+연결 지침 생성과 기존 AGENTS.md의 워크플로우 구역 갱신을 함께 수행합니다. 다른 사용자 지침은 보존합니다.
 
-sync의 기본 브랜치도 `main`이므로 `--branch`를 생략한 기존 명령도 같은 원격 브랜치를 확인합니다. 이전 `master` 설치는 위 fetch·switch·pull로 source를 `main`으로 전환합니다. sync 후 active.json의 `branch`와 재생성한 연결 지침의 동기화 명령이 모두 `main`인지 확인하고 아래 재등록을 수행합니다. 기존에 `main`을 사용한 설치는 그대로 이 절차를 따릅니다.
-
-### WSL 에이전트 + Windows: Codex 지침 재등록
-
-`swook`을 실제 Windows 사용자 폴더명으로 바꿉니다. 별도 설정 폴더를 쓰면 해당 경로를 지정합니다.
+**Cursor:** 같은 터미널에서 아래 명령을 실행합니다.
 
 ```bash
-python3 "$workflow_source/scripts/workflow.py" install-codex \
-  --state-dir "$workflow_state" --shell bash \
-  --codex-home "/mnt/c/Users/swook/.codex"
-```
-
-기존 워크플로우 구역을 갱신하며 다른 사용자 지침은 보존합니다. 이미 같은 내용이면 다시 쓰거나 백업을 추가하지 않습니다.
-
-### Linux 에이전트 + Windows: Cursor 지침 재등록
-
-Linux 개발 PC에서 새 연결 지침을 표시합니다.
-
-```bash
+python3 scripts/workflow.py render --state-dir "$workflow_state" --shell bash > /dev/null &&
 cat "$workflow_state/connectors/cursor.md"
 ```
 
-출력 전체로 Windows Cursor **User Rules의 기존 워크플로우 구역만** 교체하고 다른 사용자 규칙은 보존합니다. 이전 MCP 지침이 있으면 이 직접 읽기 지침으로 교체합니다.
+출력 전체를 Cursor **User Rules의 기존 워크플로우 구역**에 붙여 넣습니다. 다른 사용자 규칙은 유지합니다.
+
+### ③ 새 대화에서 확인
+
+사용하는 도구의 새 대화에서 [연결 확인](#3-연결-확인)을 요청하고, 읽은 커밋이 ①의 출력과 같은지 확인합니다. 진행 중인 작업은 기존 고정 버전을 유지하고 새 작업부터 갱신된 버전을 사용합니다. 모델 설정 변경은 [모델 사용 안내](user-guide.md#8-여러-대화와-모델-사용하기)를 따릅니다.
+
+## 5. 경로 변경과 문제 해결
+
+일반 업데이트는 4절까지만 수행하면 됩니다.
 
 ### 원본 clone 위치를 바꾸는 경우
 
@@ -187,18 +179,12 @@ python3 "$workflow_source/scripts/workflow.py" render \
   --state-dir "$workflow_state" --shell bash
 ```
 
-이어서 위의 환경별 지침 재등록을 수행합니다. Codex는 `install-codex`를 다시 실행하고, Cursor는 새 `cursor.md`로 기존 워크플로우 구역을 교체합니다. **변수만 바꾸면 이미 등록한 지침은 갱신되지 않습니다.** `sync`가 active.json의 원본 저장소 경로를 갱신하고, `render`와 재등록이 지침에 포함된 다음 동기화 명령까지 새 경로로 바꿉니다.
+새 clone 폴더로 이동한 뒤 [4절](#4-업데이트와-sync)의 해당 도구 연결 지침 갱신을 수행합니다. Codex는 `install-codex`를 다시 실행하고, Cursor는 새 `cursor.md`로 기존 워크플로우 구역을 교체합니다. **변수만 바꾸면 이미 등록한 지침은 갱신되지 않습니다.** `sync`가 active.json의 원본 저장소 경로를 갱신하고, `render`와 재등록이 지침에 포함된 다음 동기화 명령까지 새 경로로 바꿉니다.
 
-원본만 옮긴 경우 runtime과 기존 스냅샷은 이동할 필요가 없습니다. 기존에 `~/.ai_workflow` 등 다른 runtime을 사용했다면 위 `workflow_state`도 그 기존 경로로 지정합니다. 새 대화에서 아래 연결 확인을 마친 뒤 이전 clone의 정리 여부를 판단합니다.
+원본만 옮긴 경우 runtime과 기존 스냅샷은 이동할 필요가 없습니다. 기존에 `~/.ai_workflow` 등 다른 runtime을 사용했다면 위 `workflow_state`도 그 기존 경로로 지정합니다. 새 대화에서 [연결 확인](#3-연결-확인)을 마친 뒤 이전 clone의 정리 여부를 판단합니다.
 
-### 적용 확인과 기존 작업
+### sync 실패 또는 오프라인 사용
 
-해당 환경의 **새 대화**에서 [연결 확인](#3-연결-확인)을 수행하고 실제 읽은 커밋을 sync 출력과 대조합니다. 문서 변경만으로 기존 대화의 지침이나 실제 선택 모델이 자동 전환되지는 않습니다. 모델 배정표가 바뀌었다면 [명령별 모델·추론 강도](user-guide.md#8-여러-대화와-모델-사용하기)도 확인해 앱에서 선택하거나 지원되는 위임 설정에 명시합니다.
-
-규칙 본문만 갱신하고 경로·연결 지침이 그대로인 경우에는 `sync`만으로 새 사본을 선택할 수 있습니다. 소스 도구·연결 지침·모델 정책까지 포함된 배포본을 받을 때는 위 전체 흐름을 사용합니다. 여러 환경에서 같은 개정을 사용하려면 각각 sync한 뒤 커밋을 대조합니다.
-
-진행 중인 작업·하위 에이전트는 기존 고정 커밋을 유지하고 새 작업부터 새 active를 선택합니다. 스냅샷을 직접 수정하거나 참조 중인 과거 사본을 삭제하지 않습니다. 원격 확인 실패를 최신 확인 성공으로 보고하지 않으며 최신 확인이 필수이면 시작을 보류합니다. `--offline`은 로컬 HEAD를 사용하고 원격 확인을 생략하는 명시적 선택입니다. 남은 `.sync-lock`은 owner.json의 프로세스·진행 여부부터 확인합니다.
-
-Docker의 사내 Nexus 이미지 접근·DNS·프록시는 사용자 테스트 전까지 미확인입니다. 워크플로우 연결 확인과 별도로 다룹니다.
+sync가 실패하면 기존 활성 사본이 유지됩니다. 이를 최신 버전이라고 보고하지 않으며 최신 확인이 필요한 작업은 보류합니다. `--offline`은 원격 확인 없이 로컬 HEAD를 쓰겠다는 명시적 선택입니다. 남은 `.sync-lock`은 owner.json의 프로세스·진행 여부부터 확인합니다. 사용 중인 과거 스냅샷은 수정·삭제하지 않습니다.
 
 설치가 끝나면 [사용자 가이드](user-guide.md)의 단계별 요청을 사용합니다.
