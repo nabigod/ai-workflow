@@ -176,9 +176,12 @@ def render(state, shell):
     ], shell)
     text = template.replace("{{ACTIVE_PATH}}", str(state / "active.json"))
     text = text.replace("{{SYNC_COMMAND}}", command)
-    for tool in ("codex", "cursor"):
-        write_atomic(state / "connectors" / (tool + ".md"), text.encode())
-    return text
+    connectors = {tool: text.replace("{{ENVIRONMENT}}", tool)
+                  for tool in ("codex", "cursor")}
+    for tool, instructions in connectors.items():
+        write_atomic(state / "connectors" / (tool + ".md"), instructions.encode())
+    # install_codex consumes the return value; old templates remain supported.
+    return connectors["codex"]
 
 
 def merge_instructions(existing, instructions):

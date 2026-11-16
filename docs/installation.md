@@ -46,8 +46,8 @@ python3 "$workflow_source/scripts/workflow.py" render --state-dir "$workflow_sta
 ├── sync-status.json              마지막 원격 확인 결과와 시각
 ├── snapshots/<커밋>/             작업에 사용할 고정 사본
 └── connectors/
-    ├── codex.md                  Windows Codex 전역 지침에 넣을 내용
-    └── cursor.md                 Windows Cursor User Rules에 넣을 내용
+    ├── codex.md                  codex 환경이 명시된 Windows Codex 전역 지침
+    └── cursor.md                 cursor 환경이 명시된 Windows Cursor User Rules 지침
 ```
 
 `sync`는 원격을 fetch해 사본을 만들고 source 작업 파일은 변경하지 않습니다. 실패하면 기존 active를 유지하고 실패 결과를 기록합니다. `render`만으로 앱 설정이 바뀌지는 않으므로 이어서 해당 환경의 도구를 연결합니다.
@@ -112,6 +112,7 @@ MCP는 문서와 에이전트가 서로 다른 환경에 있을 때의 [선택 �
 선택한 커밋의 entry.md 본문을 직접 읽어 줘. MCP는 사용하지 마.
 이번 파일 읽기가 어느 환경에서 수행됐는지 확인 가능한 근거와 함께 알려 줘.
 두 JSON의 실제 경로, 고정 커밋·스냅샷과 실행 역할의 필수 문서 목록을 보고해 줘.
+현재 클라이언트와 연결 지침의 환경이 일치하는지 확인하고, 다른 환경의 모델 원문은 읽지 마.
 필수 문서 목록 확인과 본문 읽기를 구분하고,
 기록된 원격 확인 시각과 이번 실제 읽기 시각도 구분해 줘.
 원격 동기화·프로젝트 실행·파일 변경은 하지 마.

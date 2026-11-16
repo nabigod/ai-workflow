@@ -192,6 +192,32 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("& '", text)
         self.assertEqual(workflow.command_text(["a'b", "x y"], "powershell"), "& 'a''b' 'x y'")
 
+    def test_connectors_select_one_environment_and_install_uses_codex(self):
+        self.sync()
+        for shell in ("bash", "powershell"):
+            with self.subTest(shell=shell):
+                rendered = workflow.render(self.state, shell)
+                for environment in ("codex", "cursor"):
+                    body = (self.state / "connectors" / f"{environment}.md").read_text(encoding="utf-8")
+                    self.assertIn(f"연결 환경: `{environment}`", body)
+                    self.assertNotIn("{{", body)
+                    if environment == "codex":
+                        self.assertEqual(body, rendered)
+                home = self.root / f"home-{shell}"
+                workflow.install_codex(self.state, shell, home)
+                body = (home / "AGENTS.md").read_text(encoding="utf-8")
+                self.assertIn("연결 환경: `codex`", body)
+                self.assertNotIn("연결 환경: `cursor`", body)
+
+    def test_render_keeps_legacy_snapshot_template_compatible(self):
+        template = self.repo / "templates/entry-instructions.md"
+        template.write_text("{{ACTIVE_PATH}}\n{{SYNC_COMMAND}}\n", encoding="utf-8")
+        self.commit()
+        self.sync(offline=True)
+        result = workflow.render(self.state, "bash")
+        self.assertNotIn("{{", result)
+        self.assertEqual(result, (self.state / "connectors/cursor.md").read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -62,6 +62,19 @@ class MCPFixture(unittest.TestCase):
 
 
 class MCPTests(MCPFixture):
+    def test_split_documents_read_exact_pinned_bodies_after_active_switch(self):
+        names = ("models-cursor.md", "models-codex.md", "records-state.md", "records-evidence.md")
+        for name in names:
+            body = (SOURCE / "workflow" / name).read_bytes()
+            (self.snapshot / "workflow" / name).write_bytes(body)
+        changed = dict(self.active, commit="b" * 40)
+        workflow.write_json(self.state / "active.json", changed)
+        for name in names:
+            with self.subTest(name=name):
+                result = self.reader.document(self.commit, f"workflow/{name}")
+                self.assertEqual(result["text"], (SOURCE / "workflow" / name).read_text(encoding="utf-8"))
+                self.assertEqual(result["commit"], self.commit)
+
     def test_status_reads_json_without_claiming_entry_read_or_remote_check(self):
         result = self.reader.status()
         self.assertEqual(result["active"]["commit"], self.commit)

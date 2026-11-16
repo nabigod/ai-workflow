@@ -1,6 +1,6 @@
 # AI Workflow
 
-Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 규칙 기준 `2026-11-12`, 셋업 안내 개정 `2026-11-12`, 프로젝트 관리 구조 버전 `5`입니다.
+Codex와 Cursor에서 공유하는 단계별 에이전트 운영 규칙입니다. 규칙 기준 `2026-11-17`, 셋업 안내 개정 `2026-11-12`, 프로젝트 관리 구조 버전 `5`입니다.
 
 **WSL 에이전트 + Windows Codex** 또는 **Linux 에이전트 + Windows Cursor**를 사용합니다. 워크플로우는 사용할 WSL·Linux 사용자 환경에 한 번씩 설치하고 여러 프로젝트에서 공유합니다. 전역 지침에는 짧은 연결 문구만 넣고 에이전트가 역할별 필수 원문을 읽습니다. 프로젝트 기록은 해당 프로젝트의 `.ai-work/`에 두고 Git에서 제외합니다.
 
@@ -37,11 +37,11 @@ Linux 에이전트 환경에서는 하나의 개발 PC에서 총괄과 하위 �
 
 원본 위치를 바꿀 때는 기존 runtime을 유지하고 `workflow_source` 변경 → sync → render → 도구별 지침 재등록을 수행합니다. 자세한 순서는 [원본 위치 변경 안내](docs/installation.md#원본-clone-위치를-바꾸는-경우)를 따릅니다.
 
-Codex는 WSL 파일을, Cursor는 Remote SSH로 연결한 Linux 개발 PC의 파일을 직접 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할의 필수 문서 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
+Codex는 WSL 파일을, Cursor는 Remote SSH로 연결한 Linux 개발 PC의 파일을 직접 읽습니다. 상태 확인 → 고정 커밋의 `workflow/entry.md` → 해당 역할·현재 환경 하나·실제 조건의 원문 → 프로젝트 작업지시서 순서입니다. 전체 규칙을 자동 첨부하는 방식은 아닙니다.
 
 | 저장소 위치 | 내용 |
 |---|---|
-| `workflow/entry.md` | 역할별 읽기 목록·버전 고정의 진입점 |
+| `workflow/entry.md` | 역할·환경·조건별 읽기 목록과 버전 고정의 진입점 |
 | `workflow/` | 공통·모델·기록·품질과 역할별 운영 규칙 원본 |
 | `docs/installation.md` | 실행 환경별 공통 설치·도구 연결·확인·sync |
 | `docs/mcp.md` | 문서와 작업 환경을 분리할 때의 선택 연결 |
@@ -67,4 +67,4 @@ python3 scripts/check_docs.py
 python3 -m unittest discover -s tests -v
 ```
 
-[유지보수 안내](docs/maintenance.md)는 문서·스크립트 검사와 실제 앱의 지침 로딩·모델 전환 검증을 구분합니다. 모델의 기준 버전·추론 강도는 [모델 배정표](workflow/models.md)를 따르며 현재 환경의 가용성은 배정 시 확인합니다.
+[유지보수 안내](docs/maintenance.md)는 문서·스크립트 검사와 실제 앱의 지침 로딩·모델 전환 검증을 구분합니다. 모델의 역할 단계는 [배정표](workflow/models.md), 기준 버전·추론 강도는 현재 환경의 [Codex](workflow/models-codex.md) 또는 [Cursor](workflow/models-cursor.md) 프로필을 따르며 현재 환경의 가용성은 배정 시 확인합니다.
